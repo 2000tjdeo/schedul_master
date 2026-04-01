@@ -1,0 +1,345 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import useTaskStore from './store/taskStore.js';
+import useViewMode from './hooks/useViewMode.js';
+import { supabase } from './lib/supabase.js';
+import { STITCH, ACCENT } from './utils/colorMap.js';
+
+import TopBar          from './components/TopBar/TopBar.jsx';
+import AppSidebar      from './components/Layout/AppSidebar.jsx';
+import FocusPanel      from './components/Layout/FocusPanel.jsx';
+import BottomNav       from './components/Layout/BottomNav.jsx';
+import Toast           from './components/common/Toast.jsx';
+import TaskModal       from './components/TaskModal.jsx';
+import UnifiedCreateModal from './components/UnifiedCreateModal.jsx';
+import AppointmentModal from './components/AppointmentModal.jsx';
+import AdminPage from './pages/AdminPage.jsx';
+
+// Calendar
+import CalendarPanel   from './components/Calendar/CalendarPanel.jsx';
+import MiniCalendar    from './components/Calendar/MiniCalendar.jsx';
+import BentoSchedule   from './components/Calendar/BentoSchedule.jsx';
+
+// Kanban / Tasks
+import KanbanBoard     from './components/Kanban/KanbanBoard.jsx';
+import MobileKanbanBoard from './components/Kanban/MobileKanbanBoard.jsx';
+
+// ── Login Modal ──────────────────────────────────────────────────────────────
+function LoginModal({ onLogin }) {
+  const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
+  const [needPin, setNeedPin] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const createUser = useTaskStore(s => s.createUser);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setError('Please enter your name.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      let loggedUser = null;
+      let reqPin = false;
+      let errMsg = null;
+      const { data: existingUser } = await supabase.from('sm_users').select('*').eq('name', name.trim()).single();
+      if (existingUser) {
+        if (existingUser.pin) {
+          if (!pin) { reqPin = true; errMsg = 'Please enter PIN.'; }
+          else if (existingUser.pin !== pin) { errMsg = 'Invalid PIN.'; }
+          else { loggedUser = existingUser; }
+        } else { loggedUser = existingUser; }
+      } else {
+        const res = await createUser(name.trim());
+        if (res.error) errMsg = res.error;
+        else loggedUser = res;
+      }
+      if (reqPin) { setNeedPin(true); setError(errMsg); setLoading(false); return; }
+      if (errMsg) { setError(errMsg); setLoading(false); return; }
+      onLogin(loggedUser);
+    } catch (err) {
+      console.error(err);
+      setError('Database connection error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(135deg, #f5f3ff 0%, #f0f9ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 100 }}>
+      <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.12)', width: '100%', maxWidth: 360, padding: 36 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 16, background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, boxShadow: `0 8px 24px ${ACCENT}44` }}>
+             <span className="material-symbols-outlined" style={{ fontSize: 32, fontVariationSettings: "'FILL' 1", color: '#fff' }}>calendar_month</span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#111', margin: 0, fontFamily: 'Manrope, sans-serif' }}>Schedule Master</h1>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <input type="text" placeholder="Your Name" value={name} onChange={e => { setName(e.target.value); setNeedPin(false); setError(''); }} autoFocus maxLength={30} style={{ width: '100%', padding: '12px 14px', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', color: '#111' }} />
+          {needPin && (
+              <input type="password" inputMode="numeric" placeholder="4-6 Digit PIN" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g,'')); setError(''); }} maxLength={6} autoFocus style={{ width: '100%', padding: '12px 14px', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', color: '#111', textAlign: 'center' }} />
+          )}
+          {error && <p style={{ color: '#ef4444', fontSize: 12, margin: '-4px 0 0' }}>{error}</p>}
+          <button type="submit" disabled={loading} style={{ padding: '12px', borderRadius: 12, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', background: ACCENT, color: '#fff', fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1, transition: 'all 0.15s', fontFamily: 'inherit' }}>
+            {loading ? 'Logging in...' : 'Get Started'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Task List View ───────────────────────────────────────────────────────────
+function TaskListView({ tasks, onTaskClick }) {
+  const STATUS_COLOR = { todo: '#94a3b8', in_progress: '#f59e0b', done: '#10b981' };
+  const groups = [ { status: 'in_progress', label: 'In Progress' }, { status: 'todo', label: 'To Do' }, { status: 'done', label: 'Completed' } ];
+  return (
+    <div style={{ padding: '24px', overflowY: 'auto', height: '100%' }}>
+      {groups.map(({ status, label }) => {
+        const items = tasks.filter(t => t.status === status);
+        return (
+          <div key={status} style={{ marginBottom: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOR[status] }} />
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {items.map(t => (
+                <div key={t.id} onClick={() => onTaskClick(t)} style={{ background: '#fff', borderRadius: 16, padding: '16px', border: '1px solid #f1f1f1', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '2px', border: `2px solid ${STATUS_COLOR[t.status]}` }} />
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: t.status === 'done' ? '#9ca3af' : '#111' }}>{t.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main App Component ────────────────────────────────────────────────────────
+export default function App() {
+  const [currentUser,    setCurrentUser]    = useState(null);
+  const [selectedTask,   setSelectedTask]   = useState(null);
+  const [selectedAppt,   setSelectedAppt]   = useState(null);
+  const [showCreate,     setShowCreate]     = useState(false);
+  const [createType,     setCreateType]     = useState('task');
+  const [createDate,     setCreateDate]     = useState(null);
+  const [createStatus,   setCreateStatus]   = useState('todo');
+  const [showAdmin,      setShowAdmin]      = useState(false);
+  const [searchQuery,    setSearchQuery]    = useState('');
+  const [activeTab,      setActiveTab]      = useState('calendar'); // calendar, kanban, tasks, archived
+  const [showArchived,   setShowArchived]   = useState(false);
+
+  const {
+    tasks, users, appointments, loading, toast, selectedDate,
+    fetchTasks, fetchUsers, fetchAppointments,
+    addTask, updateTask, deleteTask, moveTask,
+    addAppointment, updateAppointment, deleteAppointment,
+    getComments, addComment, setSelectedDate,
+  } = useTaskStore();
+
+  const { isMobile, isTablet, isDesktop } = useViewMode();
+
+  // 사이드바 상태값 (모바일 전용 드로어 열림 상태. 데스크탑/태블릿에서는 상시 랜더링됨)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('schedule_master_user');
+    if (saved) {
+      try { setCurrentUser(JSON.parse(saved)); }
+      catch { localStorage.removeItem('schedule_master_user'); }
+    }
+  }, []);
+
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+    localStorage.setItem('schedule_master_user', JSON.stringify(user));
+  };
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('schedule_master_user');
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchTasks(); fetchUsers(); fetchAppointments();
+    }
+  }, [currentUser, fetchTasks, fetchUsers, fetchAppointments]);
+
+  const handleCreateTask = useCallback(async (data) => addTask({ ...data, created_by: currentUser?.id }), [addTask, currentUser]);
+  const handleUpdateTask = useCallback(async (id, data) => {
+    const result = await updateTask(id, data);
+    if (!result?.error && selectedTask?.id === id) setSelectedTask(result);
+    return result;
+  }, [updateTask, selectedTask]);
+  const handleDeleteTask = useCallback(async (id) => {
+    const result = await deleteTask(id);
+    if (!result?.error) setSelectedTask(null);
+    return result;
+  }, [deleteTask]);
+  const handleAddComment = useCallback((taskId, content) =>
+    addComment(taskId, { user_id: currentUser?.id, user_name: currentUser?.name, content }),
+  [addComment, currentUser]);
+
+  const openCreateTask = useCallback((status = 'todo', date) => {
+    setCreateType('task'); setCreateStatus(status); setCreateDate(date ?? selectedDate); setShowCreate(true);
+  }, [selectedDate]);
+  const openCreateAppt = useCallback((date) => {
+    setCreateType('appointment'); setCreateDate(date ?? selectedDate); setShowCreate(true);
+  }, [selectedDate]);
+
+  const allTasks = tasks || [];
+  
+  // 'archived' 상태인 것과 그렇지 않은 것을 분리
+  const activeTasks = allTasks.filter(t => t.status !== 'archived');
+  const archivedTasks = allTasks.filter(t => t.status === 'archived');
+
+  // 현재 탭이 'archived'면 아카이브된 것들만, 아니면 활성 태스크들만 대상으로 필터링
+  const sourceTasks = activeTab === 'archived' ? archivedTasks : activeTasks;
+
+  const filteredTasks = sourceTasks.filter(task => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (!task.title.toLowerCase().includes(q) && !(task.description || '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const stats = { 
+    total: activeTasks.length, 
+    todo: activeTasks.filter(t => t.status === 'todo').length, 
+    in_progress: activeTasks.filter(t => t.status === 'in_progress').length, 
+    done: activeTasks.filter(t => t.status === 'done').length,
+    archived: archivedTasks.length
+  };
+
+  if (!currentUser) return <LoginModal onLogin={handleLogin} />;
+  
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: STITCH.bg }}>
+        <div style={{ width: 40, height: 40, border: '4px solid #e5e7eb', borderTopColor: ACCENT, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  const calProps = { tasks: filteredTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt };
+  const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask };
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: STITCH.bg, fontFamily: 'Inter, sans-serif' }}>
+      
+      {/* ── Sidebar ── */}
+      <AppSidebar
+        open={!isMobile || sidebarOpen}
+        isMobile={isMobile}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        stats={stats}
+        users={users}
+        onClose={() => setSidebarOpen(false)}
+        onCreateNew={() => openCreateTask()}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onAdmin={() => setShowAdmin(true)}
+      />
+
+      {/* ── Main Area ── */}
+      <main style={{
+        flex: 1,
+        marginLeft: isMobile ? 0 : 256,
+        display: 'flex', flexDirection: 'column',
+        height: '100vh',
+        overflow: 'hidden',
+        transition: 'margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}>
+        
+        <TopBar
+          user={currentUser}
+          onLogout={handleLogout}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onMenuToggle={() => setSidebarOpen(o => !o)}
+          isMobile={isMobile}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onAdmin={() => setShowAdmin(true)}
+        />
+
+        {/* Dynamic Content Structure */}
+        <section style={{ flex: 1, display: 'flex', overflowY: 'auto', overflowX: 'hidden' }}>
+          
+          <div style={{ 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: 'column',
+            gap: 24,
+            width: '100%',
+            overflowY: 'auto',
+            padding: isMobile ? '16px' : '32px',
+          }}>
+            {/* Main Tabs (Calendar/Board/Tasks) */}
+            <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', minHeight: isDesktop || isTablet ? 650 : 'auto' }}>
+              {activeTab === 'calendar' && (
+                 isMobile ? (
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <div style={{ background: '#fff', borderRadius: 24, padding: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                        <MiniCalendar tasks={filteredTasks} appointments={appointments} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+                      </div>
+                      <BentoSchedule selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} />
+                   </div>
+                 ) : (
+                   <CalendarPanel {...calProps} />
+                 )
+              )}
+              {activeTab === 'kanban' && (isMobile ? <MobileKanbanBoard {...boardProps} /> : <KanbanBoard {...boardProps} />)}
+              {activeTab === 'tasks' && <TaskListView tasks={filteredTasks} onTaskClick={setSelectedTask} />}
+              {activeTab === 'archived' && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                   <div style={{ padding: '0 24px 16px' }}>
+                     <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1a1c1c' }}>Archive Storage</h2>
+                     <p style={{ fontSize: 13, color: '#71717a' }}>보관된 모든 항목들을 관리합니다. 필요 시 상세화면에서 상태를 변경하여 복구할 수 있습니다.</p>
+                   </div>
+                   <TaskListView tasks={filteredTasks} onTaskClick={setSelectedTask} />
+                </div>
+              )}
+            </div>
+
+            {/* Tablet View: FocusPanel appears BELOW Calendar in same scrollable area */}
+            {isTablet && activeTab === 'calendar' && (
+               <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f1f1' }}>
+                 <BentoSchedule selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} />
+               </div>
+            )}
+          </div>
+
+          {/* Desktop View: FocusPanel is persistent on the right */}
+          {isDesktop && activeTab === 'calendar' && (
+            <div style={{ width: 320, flexShrink: 0, height: '100%', overflowY: 'auto', background: STITCH.side }}>
+              <FocusPanel selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} />
+            </div>
+          )}
+
+        </section>
+
+        {isMobile && <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
+      </main>
+
+      {/* Floating Action Elements */}
+      {isMobile && (
+        <button onClick={() => openCreateTask()} style={{ position: 'fixed', bottom: 100, right: 24, width: 56, height: 56, borderRadius: 16, background: `linear-gradient(to bottom, ${ACCENT}, #8d0000)`, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 24px ${ACCENT}55`, zIndex: 45 }}>
+          <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: 32 }}>add</span>
+        </button>
+      )}
+
+      {selectedAppt && <AppointmentModal appt={selectedAppt} currentUser={currentUser} onClose={() => setSelectedAppt(null)} onUpdate={async (id, data) => { const result = await updateAppointment(id, data); if (!result?.error) setSelectedAppt(result); return result; }} onDelete={deleteAppointment} />}
+      {selectedTask && <TaskModal task={selectedTask} users={users} currentUser={currentUser} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onAddComment={handleAddComment} getComments={getComments} />}
+      {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} users={users} currentUser={currentUser} onClose={() => setShowCreate(false)} onCreate={handleCreateTask} onCreateAppt={async (data) => addAppointment(data)} />}
+      {showAdmin && <AdminPage currentUser={currentUser} onClose={() => setShowAdmin(false)} />}
+      <Toast toast={toast} />
+      <style>{`* { box-sizing: border-box; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; display: inline-block; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}

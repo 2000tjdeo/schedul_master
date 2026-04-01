@@ -1,0 +1,13 @@
+{
+  "name": "schedule-master",
+  "version": "1.0.0",
+  "description": "Full-stack task management / kanban board app",
+  "scripts": {
+    "dev": "npm run client",
+    "client": "cd client && npm run dev",
+    "install:all": "npm install && cd client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
