@@ -137,35 +137,29 @@ export function DrumColumn({ items, value, onChange, width = 60 }) {
 
 // ─── Date drum: Year / Month / Day ────────────────────────────────────────────
 export function DateDrum({ value, onChange }) {
-  const base   = new Date();
-  const parsed = value
-    ? value.split('-').map(Number)
-    : [base.getFullYear(), base.getMonth() + 1, base.getDate()];
-  const [y, m, d] = parsed;
-
-  const years = Array.from({ length: 8 }, (_, i) => {
-    const yr = base.getFullYear() - 1 + i;
-    return { value: yr, label: `${yr}년` };
-  });
-  const months = Array.from({ length: 12 }, (_, i) => ({
-    value: i + 1, label: `${i + 1}월`,
-  }));
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, i) => ({
-    value: i + 1, label: `${i + 1}일`,
-  }));
-
-  const emit = (ny, nm, nd) => {
-    const maxD  = new Date(ny, nm, 0).getDate();
-    const safeD = Math.min(nd, maxD);
-    onChange(`${ny}-${String(nm).padStart(2, '0')}-${String(safeD).padStart(2, '0')}`);
+  // Use native date picker for better mobile support
+  const handleChange = (e) => {
+    onChange(e.target.value);
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', gap: 0 }}>
-      <DrumColumn items={years}  value={y} onChange={(ny) => emit(ny, m, d)} width={72} />
-      <DrumColumn items={months} value={m} onChange={(nm) => emit(y, nm, d)} width={50} />
-      <DrumColumn items={days}   value={d} onChange={(nd) => emit(y, m, nd)} width={44} />
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}>
+      <input
+        type="date"
+        value={value || ''}
+        onChange={handleChange}
+        style={{
+          fontSize: 16,
+          padding: '10px 16px',
+          borderRadius: 12,
+          border: '1px solid #e2e8f0',
+          background: '#fff',
+          color: '#1a1c1c',
+          fontFamily: 'Manrope, sans-serif',
+          touchAction: 'manipulation',
+          WebkitAppearance: 'none',
+        }}
+      />
     </div>
   );
 }
@@ -173,24 +167,47 @@ export function DateDrum({ value, onChange }) {
 // ─── Time drum: Hour / Minute ─────────────────────────────────────────────────
 export function TimeDrum({ value, onChange, step = 5 }) {
   const [hStr, mStr] = (value || '09:00').split(':');
-  const h      = parseInt(hStr, 10) || 0;
-  const rawM   = parseInt(mStr, 10) || 0;
-  const snapM  = Math.round(rawM / step) * step % 60;
+  const h = parseInt(hStr, 10) || 0;
+  const m = parseInt(mStr, 10) || 0;
 
-  const hours = Array.from({ length: 24 }, (_, i) => ({
-    value: i, label: `${String(i).padStart(2, '0')}시`,
-  }));
-  const minutes = Array.from({ length: Math.floor(60 / step) }, (_, i) => ({
-    value: i * step, label: `${String(i * step).padStart(2, '0')}분`,
-  }));
+  // Build time options based on step
+  const times = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let min = 0; min < 60; min += step) {
+      times.push({
+        value: `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`,
+        label: `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`,
+      });
+    }
+  }
 
-  const emit = (nh, nm) =>
-    onChange(`${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`);
+  // For better mobile support, use native time input
+  const handleChange = (e) => {
+    onChange(e.target.value);
+  };
+
+  // Format for display
+  const displayValue = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', gap: 0 }}>
-      <DrumColumn items={hours}   value={h}     onChange={(nh) => emit(nh, snapM)} width={62} />
-      <DrumColumn items={minutes} value={snapM} onChange={(nm) => emit(h, nm)}     width={62} />
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}>
+      <input
+        type="time"
+        value={displayValue}
+        onChange={handleChange}
+        step={step * 60}
+        style={{
+          fontSize: 16,
+          padding: '10px 16px',
+          borderRadius: 12,
+          border: '1px solid #e2e8f0',
+          background: '#fff',
+          color: '#1a1c1c',
+          fontFamily: 'Manrope, sans-serif',
+          touchAction: 'manipulation',
+          WebkitAppearance: 'none',
+        }}
+      />
     </div>
   );
 }

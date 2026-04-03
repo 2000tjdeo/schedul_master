@@ -2,7 +2,7 @@ import React from 'react';
 import { CATEGORY_COLORS, ACCENT } from '../../utils/colorMap.js';
 import { isToday, toYMD } from '../../utils/dateUtils.js';
 
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW = ['월', '화', '수', '목', '금', '토', '일'];
 
 export default function MiniCalendar({ tasks, appointments, selectedDate, onSelectDate }) {
   const now = new Date();
@@ -12,7 +12,7 @@ export default function MiniCalendar({ tasks, appointments, selectedDate, onSele
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   
-  const startOffset = firstDay.getDay();
+  const startOffset = (firstDay.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
   const days = [];
   
   // Padding prev month

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DateDrum, TimeDrum, DrumPickerStyles } from './ui/DrumPicker.jsx';
 import useSpeech from '../hooks/useSpeech.js';
 import { parseNL } from '../utils/nlParser.js';
@@ -59,7 +59,7 @@ function Toggle({ on, onToggle }) {
 }
 
 function Card({ children, style }) {
-  return <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f1f1', overflow: 'hidden', ...style }}>{children}</div>;
+  return <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f1f1', ...style }}>{children}</div>;
 }
 
 function CardRow({ label, children, noBorder, compact }) {
@@ -79,16 +79,35 @@ function Pill({ label, active, onClick, accentColor = ACCENT }) {
   );
 }
 
-function ChipBtn({ label, selected, onClick, color }) {
+function ChipBtn({ label, selected = false, onClick, color }) {
   return (
-    <button onClick={onClick} style={{ padding: '4px 12px', borderRadius: 12, fontSize: 11, fontWeight: 700, border: `1.5px solid ${selected ? color : '#e2e8f0'}`, background: selected ? `${color}15` : '#fff', color: selected ? color : '#64748b', cursor: 'pointer', fontFamily: 'Manrope', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
+    <button 
+      type="button"
+      onClick={onClick}
+      style={{ 
+        padding: '8px 16px', 
+        borderRadius: 12, 
+        fontSize: 12, 
+        fontWeight: 700, 
+        border: selected ? `2px solid ${color}` : `1.5px solid #e2e8f0`,
+        background: selected ? `${color}20` : '#fff',
+        color: selected ? color : '#64748b',
+        cursor: 'pointer', 
+        fontFamily: 'Manrope', 
+        touchAction: 'manipulation',
+        WebkitTapHighlightColor: 'transparent',
+        minWidth: 'auto',
+        height: 'auto',
+        transition: 'all 0.15s ease',
+      }}
+    >
       {label}
     </button>
   );
 }
 
 // ─── NLStrip ──────────────────────────────────────────────────────────────────
-function NLStrip({ onParsed, isAppt }) {
+function NLStrip({ onParsed, isAppt, currentData }) {
   const [text, setText] = useState('');
   const [showChips, setShowChips] = useState(false);
   const [dbChips, setDbChips] = useState([]);
@@ -143,29 +162,65 @@ function NLStrip({ onParsed, isAppt }) {
   const titlePresets = dbChips.filter(c => c.type === 'title').map(c => c.label);
   const fallbackTitles = isAppt ? ['Client Meeting', 'Design Review'] : ['Project Planning', 'API Dev'];
 
+  // Check if chip is selected
+  const isTitleSelected = (label) => currentData?.title === label;
+  const isDateSelected = (value) => isAppt ? currentData?.date === value : currentData?.task_date === value;
+  const isTimeSelected = (value) => isAppt ? currentData?.start_time === value : currentData?.task_time === value;
+  const isDurationSelected = (value) => currentData?.duration === value;
+
   return (
     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={isListening ? stopListening : startListening} style={{ width: 36, height: 36, borderRadius: '50%', background: isListening ? ACCENT : '#fff', border: `2px solid ${isListening ? ACCENT : '#e2e8f0'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: isListening ? '#fff' : '#64748b' }}>mic</span>
+        <button 
+          type="button"
+          onClick={isListening ? stopListening : startListening} 
+          style={{ 
+            width: 40, height: 40, borderRadius: '50%', 
+            background: isListening ? ACCENT : '#fff', 
+            border: `2px solid ${isListening ? ACCENT : '#e2e8f0'}`, 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            touchAction: 'manipulation',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20, color: isListening ? '#fff' : '#64748b' }}>mic</span>
         </button>
         <input
-          type="text" value={text} onChange={handleChange} onKeyDown={handleKeyDown}
+          type="text" 
+          value={text} 
+          onChange={(e) => { console.log('NL input:', e.target.value); setText(e.target.value); }} 
+          onKeyDown={handleKeyDown}
           placeholder={isAppt ? '예: 내일 오후 2시 팀 미팅' : '예: 다음주 월요일 오전 API 개발 2시간'}
-          style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 13, fontFamily: 'Inter', color: '#111' }}
+          style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 14, fontFamily: 'Inter', color: '#111', padding: '8px' }}
         />
         {aiLoading && <span style={{ fontSize: 11, color: ACCENT, fontWeight: 700, flexShrink: 0 }}>AI ✨</span>}
-        {text && !aiLoading && <button onClick={() => setText('')} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer' }}>✕</button>}
+        {text && !aiLoading && <button onClick={() => setText('')} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>✕</button>}
       </div>
-      <button onClick={() => setShowChips(!showChips)} style={{ border: 'none', background: 'none', fontSize: 11, fontWeight: 800, color: ACCENT, cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+      <button 
+        type="button"
+        onClick={() => { console.log('Quick Menu toggle:', !showChips); setShowChips(!showChips); }} 
+        style={{ 
+          border: 'none', 
+          background: 'none', 
+          fontSize: 12, 
+          fontWeight: 800, 
+          color: ACCENT, 
+          cursor: 'pointer', 
+          textAlign: 'left', 
+          padding: '8px 4px',
+          touchAction: 'manipulation',
+        }}
+      >
         Quick Menu {showChips ? '▲' : '▼'}
       </button>
       {showChips && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>{(titlePresets.length ? titlePresets : fallbackTitles).map(t => <ChipBtn key={t} label={t} color="#6366f1" onClick={() => onParsed({ title: t })} />)}</div>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>{dateChips.map(d => <ChipBtn key={d.value} label={d.label} color={ACCENT} onClick={() => onParsed({ task_date: d.value })} />)}</div>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>{timeChips.map(t => <ChipBtn key={t.value} label={t.label} color="#0ea5e9" onClick={() => onParsed({ task_time: t.value })} />)}</div>
-          <div style={{ display: 'flex', gap: 6 }}>{durationChips.map(d => <ChipBtn key={d.value} label={d.label} color="#f97316" onClick={() => onParsed({ duration: d.value })} />)}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{(titlePresets.length ? titlePresets : fallbackTitles).map(t => <ChipBtn key={t} label={t} color="#6366f1" selected={isTitleSelected(t)} onClick={() => { onParsed({ title: t }); }} />)}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{dateChips.map(d => <ChipBtn key={d.value} label={d.label} color={ACCENT} selected={isDateSelected(d.value)} onClick={() => { onParsed({ task_date: d.value }); }} />)}</div>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>{timeChips.map(t => <ChipBtn key={t.value} label={t.label} color="#0ea5e9" selected={isTimeSelected(t.value)} onClick={() => onParsed({ task_time: t.value })} />)}</div>
+          <div style={{ display: 'flex', gap: 6 }}>{durationChips.map(d => <ChipBtn key={d.value} label={d.label} color="#f97316" selected={isDurationSelected(d.value)} onClick={() => onParsed({ duration: d.value })} />)}</div>
         </div>
       )}
     </div>
@@ -173,24 +228,123 @@ function NLStrip({ onParsed, isAppt }) {
 }
 
 // ─── DateTime Card (Drum) ─────────────────────────────────────────────────────
-function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, endTime, onStartDate, onStartTime, onEndDate, onEndTime, accentColor }) {
+function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, endTime, duration, onStartDate, onStartTime, onEndDate, onEndTime, accentColor }) {
   const [open, setOpen] = useState(null);
-  const toggle = (k) => setOpen(prev => prev === k ? null : k);
+  const endDateRef = useRef(null);
+  const endTimeRef = useRef(null);
+  const startDateRef = useRef(null);
+  const startTimeRef = useRef(null);
+
+  const toggle = (key) => {
+    const willOpen = open !== key;
+    setOpen(open === key ? null : key);
+    
+    // Scroll to the opened picker
+    setTimeout(() => {
+      const ref = key === 'ed' ? endDateRef : key === 'et' ? endTimeRef : key === 'sd' ? startDateRef : key === 'st' ? startTimeRef : null;
+      if (ref?.current && willOpen) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      }
+    }, 50);
+  };
+
+  // Handle start time change - recalculate end time based on duration
+  const handleStartTimeChange = (newStartTime) => {
+    const dur = duration || 60;
+    const newEndTime = addMinutes(newStartTime, dur);
+    onStartTime(newStartTime);
+    onEndTime(newEndTime);
+  };
+
   return (
     <Card>
       <CardRow label="All Day"><Toggle on={allDay} onToggle={onAllDayToggle} /></CardRow>
       <CardRow label="Start">
-        <Pill label={fmtDate(startDate)} active={open === 'sd'} onClick={() => toggle('sd')} accentColor={accentColor} />
-        {!allDay && <Pill label={fmtTime(startTime)} active={open === 'st'} onClick={() => toggle('st')} accentColor={accentColor} />}
+        <button 
+          type="button"
+          ref={startDateRef}
+          onClick={(e) => { e.preventDefault(); toggle('sd'); }}
+          style={{
+            padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
+            border: `1.5px solid ${open === 'sd' ? accentColor : '#e2e8f0'}`,
+            background: open === 'sd' ? `${accentColor}15` : '#fff',
+            color: open === 'sd' ? accentColor : '#64748b',
+            cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
+          }}
+        >
+          {fmtDate(startDate)}
+        </button>
+        {!allDay && (
+          <button 
+            type="button"
+            ref={startTimeRef}
+            onClick={(e) => { e.preventDefault(); toggle('st'); }}
+            style={{
+              padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
+              border: `1.5px solid ${open === 'st' ? accentColor : '#e2e8f0'}`,
+              background: open === 'st' ? `${accentColor}15` : '#fff',
+              color: open === 'st' ? accentColor : '#64748b',
+              cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
+            }}
+          >
+            {fmtTime(startTime)}
+          </button>
+        )}
       </CardRow>
-      {open === 'sd' && <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0' }}><DateDrum value={startDate} onChange={onStartDate} /></div>}
-      {open === 'st' && !allDay && <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0' }}><TimeDrum value={startTime} onChange={onStartTime} /></div>}
+      {open === 'sd' && (
+        <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
+          <DateDrum value={startDate} onChange={(v) => { onStartDate(v); setOpen(null); }} />
+        </div>
+      )}
+      {open === 'st' && !allDay && (
+        <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
+          <TimeDrum value={startTime} onChange={handleStartTimeChange} />
+        </div>
+      )}
       <CardRow label="End" noBorder>
-        <Pill label={fmtDate(endDate)} active={open === 'ed'} onClick={() => toggle('ed')} accentColor={accentColor} />
-        {!allDay && <Pill label={fmtTime(endTime)} active={open === 'et'} onClick={() => toggle('et')} accentColor={accentColor} />}
+        <button 
+          type="button"
+          ref={endDateRef}
+          onClick={(e) => { e.preventDefault(); toggle('ed'); }}
+          style={{
+            padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
+            border: `1.5px solid ${open === 'ed' ? accentColor : '#e2e8f0'}`,
+            background: open === 'ed' ? `${accentColor}15` : '#fff',
+            color: open === 'ed' ? accentColor : '#64748b',
+            cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
+            minHeight: '36px',
+          }}
+        >
+          {fmtDate(endDate)}
+        </button>
+        {!allDay && (
+          <button 
+            type="button"
+            ref={endTimeRef}
+            onClick={(e) => { e.preventDefault(); toggle('et'); }}
+            style={{
+              padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
+              border: `1.5px solid ${open === 'et' ? accentColor : '#e2e8f0'}`,
+              background: open === 'et' ? `${accentColor}15` : '#fff',
+              color: open === 'et' ? accentColor : '#64748b',
+              cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
+              minHeight: '36px',
+            }}
+          >
+            {fmtTime(endTime)}
+          </button>
+        )}
       </CardRow>
-      {open === 'ed' && <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0' }}><DateDrum value={endDate} onChange={onEndDate} /></div>}
-      {open === 'et' && !allDay && <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0' }}><TimeDrum value={endTime} onChange={onEndTime} /></div>}
+      {open === 'ed' && (
+        <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
+          <DateDrum value={endDate} onChange={(v) => { onEndDate(v); setOpen(null); }} />
+        </div>
+      )}
+      {open === 'et' && !allDay && (
+        <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
+          <TimeDrum value={endTime} onChange={(v) => { onEndTime(v); setOpen(null); }} />
+        </div>
+      )}
     </Card>
   );
 }
@@ -213,10 +367,33 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
       setAppt(a => {
         const s = p.task_time || a.start_time;
         const dur = p.duration || 60;
-        return { ...a, ...p, ...( (p.task_time || p.duration) && { start_time: s, end_time: addMinutes(s, dur) } ) };
+        // Calculate end time based on duration
+        let newEndTime = a.end_time;
+        if (p.duration && s) {
+          newEndTime = addMinutes(s, p.duration);
+        }
+        // Ensure end_date is not before start_date for appointments
+        let newEndDate = a.date;
+        if (p.date && a.date && p.date < a.date) {
+          newEndDate = a.date;
+        } else if (p.date) {
+          newEndDate = p.date;
+        }
+        return { ...a, ...p, start_time: s, end_time: newEndTime, date: newEndDate };
       });
     } else {
-      setTask(t => ({ ...t, ...p, ...( (p.task_time || p.duration) && { allDay: false } ) }));
+      // Task: calculate end_time based on task_time + duration
+      if (p.duration && p.task_time) {
+        const endTime = addMinutes(p.task_time, p.duration);
+        setTask(t => ({ ...t, ...p, allDay: false, end_time: endTime }));
+      } else if (p.task_time) {
+        // When start time changes and allDay is false, recalculate end time
+        const dur = t.duration || 60;
+        const newEndTime = addMinutes(p.task_time, dur);
+        setTask(t => ({ ...t, ...p, allDay: false, end_time: newEndTime }));
+      } else {
+        setTask(t => ({ ...t, ...p }));
+      }
     }
   }, [isAppt]);
 
@@ -267,7 +444,7 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <NLStrip onParsed={handleNLParsed} isAppt={isAppt} />
+          <NLStrip onParsed={handleNLParsed} isAppt={isAppt} currentData={isAppt ? appt : task} />
           <Card>
             <CardRow><input type="text" placeholder="Title" value={isAppt ? appt.title : task.title} onChange={e => isAppt ? setAppt(a => ({...a, title:e.target.value})) : setTask(t => ({...t, title:e.target.value}))} style={{ width: '100%', border: 'none', outline: 'none', fontSize: 18, fontWeight: 800, fontFamily: 'Manrope', color: '#1a1c1c' }} /></CardRow>
             <CardRow noBorder>
@@ -290,7 +467,49 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
               )}
             </CardRow>
           </Card>
-          <DateTimeCard accentColor={accentColor} allDay={isAppt ? appt.allDay : task.allDay} onAllDayToggle={() => isAppt ? setAppt(a=>({...a, allDay:!a.allDay})) : setTask(t=>({...t, allDay:!t.allDay}))} startDate={isAppt ? appt.date : task.task_date} startTime={isAppt ? appt.start_time : task.task_time} endDate={isAppt ? appt.date : task.due_date} endTime={isAppt ? appt.end_time : task.end_time} onStartDate={v => isAppt ? setAppt(a=>({...a, date:v})) : setTask(t=>({...t, task_date:v}))} onStartTime={v => isAppt ? setAppt(a=>({...a, start_time:v, end_time:addMinutes(v,60)})) : setTask(t=>({...t, task_time:v}))} onEndDate={v => isAppt ? setAppt(a=>({...a, date:v})) : setTask(t=>({...t, due_date:v}))} onEndTime={v => isAppt ? setAppt(a=>({...a, end_time:v})) : setTask(t=>({...t, end_time:v}))} />
+           <DateTimeCard 
+            accentColor={accentColor} 
+            allDay={isAppt ? appt.allDay : task.allDay} 
+            onAllDayToggle={() => {
+              if (isAppt) {
+                const newAllDay = !appt.allDay;
+                setAppt(a => ({...a, allDay: newAllDay, 
+                  ...(newAllDay ? { start_time: null, end_time: null } : { start_time: '09:00', end_time: '10:00' })
+                }));
+              } else {
+                const newAllDay = !task.allDay;
+                setTask(t => ({...t, allDay: newAllDay,
+                  ...(newAllDay ? { task_time: null, end_time: null, duration: null } : { task_time: '09:00', end_time: '10:00', duration: 60 })
+                }));
+              }
+            }} 
+            startDate={isAppt ? appt.date : task.task_date} 
+            startTime={isAppt ? appt.start_time : task.task_time} 
+            endDate={isAppt ? appt.date : task.due_date} 
+            endTime={isAppt ? appt.end_time : task.end_time} 
+            duration={task.duration}
+            onStartDate={v => isAppt ? setAppt(a=>({...a, date:v})) : setTask(t=>({...t, task_date:v}))} 
+            onStartTime={v => {
+              const dur = isAppt ? 60 : (task.duration || 60);
+              const end = addMinutes(v, dur);
+              if (isAppt) {
+                setAppt(a => ({...a, start_time: v, end_time: end}));
+              } else {
+                setTask(t => ({...t, task_time: v, end_time: end}));
+              }
+            }} 
+            onEndDate={v => {
+              // Ensure end date is not before start date
+              if (isAppt) {
+                setAppt(a => ({...a, date: v}));
+              } else {
+                if (v >= task.task_date) {
+                  setTask(t => ({...t, due_date: v}));
+                }
+              }
+            }} 
+            onEndTime={v => isAppt ? setAppt(a=>({...a, end_time:v})) : setTask(t=>({...t, end_time:v}))} 
+          />
           {!isAppt && (
              <Card>
                <CardRow label="Priority" noBorder>

@@ -37,15 +37,18 @@ function Chip({ label, selected, onClick, color }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={(e) => { console.log('Chip clicked:', label); onClick(); }}
       style={{
-        flexShrink: 0, padding: '6px 14px', borderRadius: 20,
+        flexShrink: 0, padding: '8px 16px', borderRadius: 20,
         border: `1.5px solid ${selected ? color : '#e2e2e8'}`,
         background: selected ? `${color}18` : '#f7f7fa',
         color: selected ? color : '#888',
         fontSize: 13, fontWeight: 600, cursor: 'pointer',
         fontFamily: 'inherit', whiteSpace: 'nowrap',
         transition: 'all 0.15s',
+        touchAction: 'manipulation',
+        WebkitTapHighlightColor: 'transparent',
+        minHeight: '36px',
       }}
     >
       {label}
