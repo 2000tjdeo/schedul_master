@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import useTaskStore from './store/taskStore.js';
 import useViewMode from './hooks/useViewMode.js';
+import useGlobalVoice from './hooks/useGlobalVoice.js';
 import { supabase } from './lib/supabase.js';
 import { STITCH, ACCENT } from './utils/colorMap.js';
 
@@ -189,6 +190,36 @@ export default function App() {
     setCreateType('appointment'); setCreateDate(date ?? selectedDate); setShowCreate(true);
   }, [selectedDate]);
 
+  // ── 글로벌 음성 명령: 자연어 → 업무 생성 모달 열기 ────────────────────────
+  const handleNLVoiceCommand = useCallback((parsed, rawText) => {
+    // NL 파싱 결과를 가지고 업무 모달 열기 (날짜/시간 정보 포함 시 자동 반영)
+    setCreateType('task');
+    setCreateDate(parsed.task_date ?? selectedDate);
+    setShowCreate(true);
+    // 모달이 열린 후 NL 텍스트를 주입하기 위해 약간의 딜레이 후 처리
+    // (UnifiedCreateModal 내부 NLStrip에서 직접 parseNL 처리하므로 rawText를 state로 전달)
+    setVoiceNLText(rawText);
+  }, [selectedDate]);
+
+  // 음성으로 인식된 자연어 텍스트 (UnifiedCreateModal에 전달용)
+  const [voiceNLText, setVoiceNLText] = useState('');
+
+  // ── useGlobalVoice 훅 연결 ───────────────────────────────────────────────────
+  const { status: voiceStatus, startListening, stopListening, supported: voiceSupported } = useGlobalVoice({
+    onCreateTask:  () => openCreateTask(),
+    onCreateAppt:  () => openCreateAppt(),
+    onTabChange:   setActiveTab,
+    onSelectToday: () => setSelectedDate(new Date().toISOString().slice(0, 10)),
+    onNLCommand:   handleNLVoiceCommand,
+    onShowToast:   (msg) => useTaskStore.getState().showToast(msg, 'info'),
+  });
+
+  // 마이크 토글 (듣는 중이면 중지, 아니면 시작)
+  const handleVoiceToggle = useCallback(() => {
+    if (voiceStatus === 'listening') stopListening();
+    else startListening();
+  }, [voiceStatus, startListening, stopListening]);
+
   const allTasks = tasks || [];
   
   // 'archived' 상태인 것과 그렇지 않은 것을 분리
@@ -266,7 +297,85 @@ export default function App() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onAdmin={() => setShowAdmin(true)}
+          voiceStatus={voiceStatus}
+          onVoiceToggle={handleVoiceToggle}
+          voiceSupported={voiceSupported}
         />
+
+        {/* ── 음성 인식 중 오버레이 ── */}
+        {(voiceStatus === 'listening' || voiceStatus === 'processing') && (
+          <div
+            onClick={stopListening}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 200,
+              background: 'rgba(0,0,0,0.45)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 20,
+            }}
+          >
+            {/* 마이크 아이콘 (pulse 애니메이션) */}
+            <div style={{
+              width: 96, height: 96, borderRadius: '50%',
+              background: voiceStatus === 'listening' ? '#ef4444' : '#f59e0b',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: voiceStatus === 'listening'
+                ? '0 0 0 16px rgba(239,68,68,0.2), 0 0 0 32px rgba(239,68,68,0.1)'
+                : '0 0 0 16px rgba(245,158,11,0.2)',
+              animation: 'voice-ripple 1.2s ease-out infinite',
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#fff' }}>
+                {voiceStatus === 'listening' ? 'mic' : 'hourglass_top'}
+              </span>
+            </div>
+
+            {/* 안내 텍스트 */}
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ color: '#fff', fontSize: 20, fontWeight: 800, fontFamily: 'Manrope', marginBottom: 8 }}>
+                {voiceStatus === 'listening' ? '듣고 있습니다...' : 'AI가 처리 중...'}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, fontFamily: 'Inter' }}>
+                {voiceStatus === 'listening'
+                  ? '"새 업무", "새 약속", "캘린더" 등을 말해보세요'
+                  : '잠시만 기다려주세요'}
+              </p>
+            </div>
+
+            {/* 명령어 힌트 카드 */}
+            {voiceStatus === 'listening' && (
+              <div style={{
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: 16, padding: '14px 24px',
+                display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center',
+                maxWidth: 480,
+              }}>
+                {['새 업무', '새 약속', '캘린더', '보드', '오늘'].map(cmd => (
+                  <span key={cmd} style={{
+                    background: 'rgba(255,255,255,0.15)',
+                    borderRadius: 20, padding: '6px 14px',
+                    color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'Manrope',
+                  }}>
+                    "{cmd}"
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>
+              화면을 누르면 취소
+            </p>
+
+            {/* ripple 애니메이션 CSS */}
+            <style>{`
+              @keyframes voice-ripple {
+                0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.4), 0 0 0 0 rgba(239,68,68,0.2); }
+                70%  { box-shadow: 0 0 0 20px rgba(239,68,68,0), 0 0 0 40px rgba(239,68,68,0); }
+                100% { box-shadow: 0 0 0 0 rgba(239,68,68,0), 0 0 0 0 rgba(239,68,68,0); }
+              }
+            `}</style>
+          </div>
+        )}
 
         {/* Dynamic Content Structure */}
         <section style={{ flex: 1, display: 'flex', overflowY: 'auto', overflowX: 'hidden' }}>

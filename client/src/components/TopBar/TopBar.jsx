@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ACCENT, STITCH } from '../../utils/colorMap.js';
 
+// 사용자 이름을 해시해서 아바타 배경색 결정
 function getAvatarColor(name = '') {
   const colors = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#f59e0b','#10b981','#14b8a6','#0ea5e9'];
   let hash = 0;
@@ -18,10 +19,15 @@ export default function TopBar({
   activeTab,
   onTabChange,
   onAdmin,
+  // ── 글로벌 음성 제어 props ──
+  voiceStatus,      // 'idle' | 'listening' | 'processing'
+  onVoiceToggle,    // 마이크 버튼 클릭 핸들러
+  voiceSupported,   // 브라우저 음성 인식 지원 여부
 }) {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef(null);
 
+  // 외부 클릭 시 설정 드롭다운 닫기
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (settingsRef.current && !settingsRef.current.contains(e.target)) {
@@ -31,6 +37,16 @@ export default function TopBar({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // 음성 상태별 마이크 아이콘 색상
+  const micColor = voiceStatus === 'listening'   ? '#ef4444'   // 빨강 - 듣는 중
+                 : voiceStatus === 'processing'  ? '#f59e0b'   // 노랑 - 처리 중
+                 : '#71717a';                                   // 회색 - 대기
+
+  // 듣는 중일 때 마이크 버튼 배경색
+  const micBg = voiceStatus === 'listening'  ? '#fef2f2'
+              : voiceStatus === 'processing' ? '#fffbeb'
+              : 'transparent';
 
   return (
     <header style={{
@@ -44,7 +60,8 @@ export default function TopBar({
       height: 64,
       flexShrink: 0,
     }}>
-      {/* Search Bar (Center/Left) */}
+
+      {/* ── 검색창 (왼쪽) ── */}
       <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: 560 }}>
         {isMobile && (
            <button onClick={onMenuToggle} style={{ border: 'none', background: 'none', padding: '8px 12px 8px 0', cursor: 'pointer', color: '#6b7280' }}>
@@ -52,7 +69,7 @@ export default function TopBar({
            </button>
         )}
         <div style={{ position: 'relative', width: '100%' }}>
-          <span className="material-symbols-outlined" style={{ 
+          <span className="material-symbols-outlined" style={{
             position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
             fontSize: 20, color: '#9ca3af'
           }}>search</span>
@@ -71,21 +88,47 @@ export default function TopBar({
         </div>
       </div>
 
-      {/* Right Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      {/* ── 오른쪽 액션 버튼들 ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+        {/* 글로벌 마이크 버튼 - 브라우저가 음성 인식을 지원하는 경우만 표시 */}
+        {voiceSupported && (
+          <button
+            onClick={onVoiceToggle}
+            title={voiceStatus === 'listening' ? '음성 인식 중지' : '음성 명령 시작'}
+            style={{
+              border: 'none',
+              background: micBg,
+              padding: 8,
+              borderRadius: 10,
+              cursor: 'pointer',
+              color: micColor,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.2s',
+              // 듣는 중일 때 pulse 애니메이션
+              animation: voiceStatus === 'listening' ? 'mic-pulse 1s infinite' : 'none',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>
+              {voiceStatus === 'listening' ? 'mic' : voiceStatus === 'processing' ? 'hourglass_top' : 'mic_none'}
+            </span>
+          </button>
+        )}
+
         <div style={{ display: isMobile ? 'none' : 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
           <button style={{ border: 'none', background: 'transparent', padding: 8, cursor: 'pointer', color: '#71717a' }}>
             <span className="material-symbols-outlined">notifications</span>
           </button>
-          
+
+          {/* 설정 드롭다운 */}
           <div ref={settingsRef}>
-            <button 
+            <button
               onClick={() => setShowSettings(!showSettings)}
               style={{ border: 'none', background: 'transparent', padding: 8, cursor: 'pointer', color: showSettings ? ACCENT : '#71717a', transition: 'all 0.1s' }}
             >
               <span className="material-symbols-outlined" style={{ transform: showSettings ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }}>settings</span>
             </button>
-            
+
             {showSettings && (
               <div style={{
                 position: 'absolute', top: 40, right: 0, width: 180,
@@ -94,8 +137,8 @@ export default function TopBar({
                 display: 'flex', flexDirection: 'column'
               }}>
                 {user?.role === 'admin' && onAdmin && (
-                  <button 
-                    onClick={() => { setShowSettings(false); onAdmin(); }} 
+                  <button
+                    onClick={() => { setShowSettings(false); onAdmin(); }}
                     style={{ width: '100%', textAlign: 'left', padding: '12px 18px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#1a1c1c', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'inherit' }}
                     onMouseEnter={e => e.target.style.background = '#f9f9f9'}
                     onMouseLeave={e => e.target.style.background = 'transparent'}
@@ -104,11 +147,9 @@ export default function TopBar({
                     Admin Dashboard
                   </button>
                 )}
-                
                 {user?.role === 'admin' && onAdmin && <div style={{ height: 1, background: '#f1f1f1', margin: '4px 0' }} />}
-
-                <button 
-                  onClick={() => { setShowSettings(false); onLogout(); }} 
+                <button
+                  onClick={() => { setShowSettings(false); onLogout(); }}
                   style={{ width: '100%', textAlign: 'left', padding: '12px 18px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'inherit' }}
                   onMouseEnter={e => e.target.style.background = '#fef2f2'}
                   onMouseLeave={e => e.target.style.background = 'transparent'}
@@ -121,16 +162,17 @@ export default function TopBar({
           </div>
         </div>
 
-        <div style={{ width: 1, height: 32, background: '#e5e7eb', margin: '0 8px', display: isMobile ? 'none' : 'block' }}></div>
+        <div style={{ width: 1, height: 32, background: '#e5e7eb', margin: '0 4px', display: isMobile ? 'none' : 'block' }} />
 
+        {/* 사용자 정보 + 아바타 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {!isMobile && (
              <div style={{ textAlign: 'right' }}>
-               <p style={{ fontSize: 13, fontHeadline: 800, color: '#1a1c1c', lineHeight: 1.1, fontWeight: 700 }}>{user?.name || 'User'}</p>
+               <p style={{ fontSize: 13, color: '#1a1c1c', lineHeight: 1.1, fontWeight: 700 }}>{user?.name || 'User'}</p>
                <p style={{ fontSize: 10, color: '#71717a', fontWeight: 500 }}>{user?.role === 'admin' ? 'Product Lead' : 'Team Member'}</p>
              </div>
           )}
-          <div 
+          <div
              onClick={isMobile ? onLogout : undefined}
              style={{
                width: 38, height: 38, borderRadius: '50%',
@@ -145,6 +187,14 @@ export default function TopBar({
           </div>
         </div>
       </div>
+
+      {/* ── 마이크 pulse 애니메이션 CSS ── */}
+      <style>{`
+        @keyframes mic-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+          50%       { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        }
+      `}</style>
     </header>
   );
 }
