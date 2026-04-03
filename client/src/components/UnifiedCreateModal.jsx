@@ -107,11 +107,13 @@ function ChipBtn({ label, selected = false, onClick, color }) {
 }
 
 // ─── NLStrip ──────────────────────────────────────────────────────────────────
-function NLStrip({ onParsed, isAppt, currentData }) {
+function NLStrip({ onParsed, isAppt }) {
   const [text, setText] = useState('');
   const [showChips, setShowChips] = useState(false);
   const [dbChips, setDbChips] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
+  // 명시적으로 선택한 칩만 하이라이트 (초기엔 아무것도 선택 안 됨)
+  const [sel, setSel] = useState({ title: null, date: null, time: null, duration: null });
 
   useEffect(() => {
     supabase.from('sm_chip_presets').select('*').then(({ data }) => { if (Array.isArray(data)) setDbChips(data); });
@@ -160,13 +162,7 @@ function NLStrip({ onParsed, isAppt, currentData }) {
 
   const durationChips = [{ label: '30m', value: 30 }, { label: '1h', value: 60 }, { label: '2h', value: 120 }, { label: '4h', value: 240 }];
   const titlePresets = dbChips.filter(c => c.type === 'title').map(c => c.label);
-  const fallbackTitles = isAppt ? ['Client Meeting', 'Design Review'] : ['Project Planning', 'API Dev'];
-
-  // Check if chip is selected
-  const isTitleSelected = (label) => currentData?.title === label;
-  const isDateSelected = (value) => isAppt ? currentData?.date === value : currentData?.task_date === value;
-  const isTimeSelected = (value) => isAppt ? currentData?.start_time === value : currentData?.task_time === value;
-  const isDurationSelected = (value) => currentData?.duration === value;
+  const fallbackTitles = isAppt ? ['클라이언트 미팅', '팀 회의', '현장 방문', '디자인 검토'] : ['기획 회의', '견적 제출', '납품 확인', 'API 개발'];
 
   return (
     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -217,10 +213,40 @@ function NLStrip({ onParsed, isAppt, currentData }) {
       </button>
       {showChips && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{(titlePresets.length ? titlePresets : fallbackTitles).map(t => <ChipBtn key={t} label={t} color="#6366f1" selected={isTitleSelected(t)} onClick={() => { onParsed({ title: t }); }} />)}</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{dateChips.map(d => <ChipBtn key={d.value} label={d.label} color={ACCENT} selected={isDateSelected(d.value)} onClick={() => { onParsed({ task_date: d.value }); }} />)}</div>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>{timeChips.map(t => <ChipBtn key={t.value} label={t.label} color="#0ea5e9" selected={isTimeSelected(t.value)} onClick={() => onParsed({ task_time: t.value })} />)}</div>
-          <div style={{ display: 'flex', gap: 6 }}>{durationChips.map(d => <ChipBtn key={d.value} label={d.label} color="#f97316" selected={isDurationSelected(d.value)} onClick={() => onParsed({ duration: d.value })} />)}</div>
+          {/* 제목 칩 */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(titlePresets.length ? titlePresets : fallbackTitles).map(t => (
+              <ChipBtn key={t} label={t} color="#6366f1" selected={sel.title === t}
+                onClick={() => { setSel(s => ({ ...s, title: t })); onParsed({ title: t }); }} />
+            ))}
+          </div>
+          {/* 날짜 칩 */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {dateChips.map(d => (
+              <ChipBtn key={d.value} label={d.label} color={ACCENT} selected={sel.date === d.value}
+                onClick={() => {
+                  setSel(s => ({ ...s, date: d.value }));
+                  onParsed(isAppt ? { date: d.value } : { task_date: d.value });
+                }} />
+            ))}
+          </div>
+          {/* 시간 칩 */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+            {timeChips.map(t => (
+              <ChipBtn key={t.value} label={t.label} color="#0ea5e9" selected={sel.time === t.value}
+                onClick={() => {
+                  setSel(s => ({ ...s, time: t.value }));
+                  onParsed(isAppt ? { task_time: t.value } : { task_time: t.value, allDay: false });
+                }} />
+            ))}
+          </div>
+          {/* 소요시간 칩 */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {durationChips.map(d => (
+              <ChipBtn key={d.value} label={d.label} color="#f97316" selected={sel.duration === d.value}
+                onClick={() => { setSel(s => ({ ...s, duration: d.value })); onParsed({ duration: d.value, allDay: false }); }} />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -365,35 +391,26 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
     if (!p) return;
     if (isAppt) {
       setAppt(a => {
-        const s = p.task_time || a.start_time;
-        const dur = p.duration || 60;
-        // Calculate end time based on duration
+        const newStartTime = p.task_time !== undefined ? p.task_time : a.start_time;
+        const newDuration = p.duration !== undefined ? p.duration : 60;
         let newEndTime = a.end_time;
-        if (p.duration && s) {
-          newEndTime = addMinutes(s, p.duration);
+        if ((p.task_time !== undefined || p.duration !== undefined) && newStartTime) {
+          newEndTime = addMinutes(newStartTime, newDuration);
         }
-        // Ensure end_date is not before start_date for appointments
-        let newEndDate = a.date;
-        if (p.date && a.date && p.date < a.date) {
-          newEndDate = a.date;
-        } else if (p.date) {
-          newEndDate = p.date;
-        }
-        return { ...a, ...p, start_time: s, end_time: newEndTime, date: newEndDate };
+        return { ...a, ...p, start_time: newStartTime, end_time: newEndTime };
       });
     } else {
-      // Task: calculate end_time based on task_time + duration
-      if (p.duration && p.task_time) {
-        const endTime = addMinutes(p.task_time, p.duration);
-        setTask(t => ({ ...t, ...p, allDay: false, end_time: endTime }));
-      } else if (p.task_time) {
-        // When start time changes and allDay is false, recalculate end time
-        const dur = t.duration || 60;
-        const newEndTime = addMinutes(p.task_time, dur);
-        setTask(t => ({ ...t, ...p, allDay: false, end_time: newEndTime }));
-      } else {
-        setTask(t => ({ ...t, ...p }));
-      }
+      setTask(t => {
+        const newTime = p.task_time !== undefined ? p.task_time : t.task_time;
+        const newDuration = p.duration !== undefined ? p.duration : (t.duration || 60);
+        let newEndTime = t.end_time;
+        let newAllDay = p.allDay !== undefined ? p.allDay : t.allDay;
+        if ((p.task_time !== undefined || p.duration !== undefined) && newTime) {
+          newAllDay = false;
+          newEndTime = addMinutes(newTime, newDuration);
+        }
+        return { ...t, ...p, end_time: newEndTime, allDay: newAllDay };
+      });
     }
   }, [isAppt]);
 
@@ -444,7 +461,7 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <NLStrip onParsed={handleNLParsed} isAppt={isAppt} currentData={isAppt ? appt : task} />
+          <NLStrip onParsed={handleNLParsed} isAppt={isAppt} />
           <Card>
             <CardRow><input type="text" placeholder="Title" value={isAppt ? appt.title : task.title} onChange={e => isAppt ? setAppt(a => ({...a, title:e.target.value})) : setTask(t => ({...t, title:e.target.value}))} style={{ width: '100%', border: 'none', outline: 'none', fontSize: 18, fontWeight: 800, fontFamily: 'Manrope', color: '#1a1c1c' }} /></CardRow>
             <CardRow noBorder>

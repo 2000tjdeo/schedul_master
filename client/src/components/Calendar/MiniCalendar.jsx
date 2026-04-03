@@ -29,7 +29,14 @@ export default function MiniCalendar({ tasks, appointments, selectedDate, onSele
 
   const getDotsForDay = (ymd) => {
     if (!ymd) return [];
-    const dayTasks = tasks.filter(t => (t.task_date || t.due_date) === ymd);
+    const dayTasks = tasks.filter(t => {
+      const a = t.task_date || t.due_date;
+      const b = t.due_date  || t.task_date;
+      if (!a) return false;
+      const start = a <= b ? a : b;
+      const end   = a <= b ? b : a;
+      return start <= ymd && ymd <= end;
+    });
     const dayAppts = appointments.filter(a => a.date === ymd);
     const all = [...dayAppts, ...dayTasks];
     return all.slice(0, 3).map(item => {
@@ -80,14 +87,15 @@ export default function MiniCalendar({ tasks, appointments, selectedDate, onSele
               </div>
               
               {/* Dots Container */}
-              <div style={{ 
-                position: 'absolute', bottom: 4, display: 'flex', gap: 2, 
-                justifyContent: 'center', width: '100%' 
+              <div style={{
+                position: 'absolute', bottom: 3, display: 'flex', gap: 3,
+                justifyContent: 'center', width: '100%'
               }}>
                 {dots.map((color, idx) => (
-                  <div key={idx} style={{ 
-                    width: 4, height: 4, borderRadius: '50%', 
-                    background: isTd ? '#fff' : color 
+                  <div key={idx} style={{
+                    width: 5, height: 5, borderRadius: '50%',
+                    background: isTd ? 'rgba(255,255,255,0.9)' : color,
+                    flexShrink: 0,
                   }} />
                 ))}
               </div>

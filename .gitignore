@@ -6,3 +6,4 @@ dist/
 .vite/
 .playwright-mcp/
 .claude/
+.vercel
