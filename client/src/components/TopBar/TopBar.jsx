@@ -19,9 +19,10 @@ export default function TopBar({
   activeTab,
   onTabChange,
   onAdmin,
-  // ── 글로벌 음성 제어 props ──
+  // ── 글로벌 음성 제어 props (PTT: Push-to-Talk) ──
   voiceStatus,      // 'idle' | 'listening' | 'processing'
-  onVoiceToggle,    // 마이크 버튼 클릭 핸들러
+  onVoiceStart,     // 마이크 버튼 누를 때 (mousedown / touchstart)
+  onVoiceStop,      // 마이크 버튼 뗄 때  (mouseup  / touchend)
   voiceSupported,   // 브라우저 음성 인식 지원 여부
 }) {
   const [showSettings, setShowSettings] = useState(false);
@@ -92,10 +93,16 @@ export default function TopBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
         {/* 글로벌 마이크 버튼 - 브라우저가 음성 인식을 지원하는 경우만 표시 */}
+        {/* PTT 마이크 버튼: 누르는 동안 녹음, 뗄 때 처리 */}
         {voiceSupported && (
           <button
-            onClick={onVoiceToggle}
-            title={voiceStatus === 'listening' ? '음성 인식 중지' : '음성 명령 시작'}
+            onMouseDown={(e) => { e.preventDefault(); onVoiceStart?.(); }}
+            onMouseUp={() => onVoiceStop?.()}
+            onMouseLeave={() => { if (voiceStatus === 'listening') onVoiceStop?.(); }}
+            onTouchStart={(e) => { e.preventDefault(); onVoiceStart?.(); }}
+            onTouchEnd={() => onVoiceStop?.()}
+            onContextMenu={(e) => e.preventDefault()} // 모바일 꾹 누름 메뉴 방지
+            title="꾹 눌러서 음성 명령"
             style={{
               border: 'none',
               background: micBg,
@@ -105,6 +112,8 @@ export default function TopBar({
               color: micColor,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.2s',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
               // 듣는 중일 때 pulse 애니메이션
               animation: voiceStatus === 'listening' ? 'mic-pulse 1s infinite' : 'none',
             }}

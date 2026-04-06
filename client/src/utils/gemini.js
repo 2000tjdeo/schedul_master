@@ -97,7 +97,48 @@ export async function generateDescription(title, category, date) {
   return await callGemini(prompt, false);
 }
 
-// ── 4. 스마트 시간대 추천 ─────────────────────────────────────────────────────
+// ── 4. 음성 명령 의도 파악 (PTT/글로벌 음성 제어용) ──────────────────────────────
+// 음성 텍스트 → 의도 분류 + 파싱된 데이터 반환
+// 반환: { action, title, task_date, task_time, due_date, priority, duration, modalType }
+export async function detectVoiceIntent(text) {
+  const today = new Date().toISOString().slice(0, 10);
+  const prompt = `오늘 날짜: ${today}
+다음 한국어 음성 명령의 의도를 파악해서 JSON으로 반환해줘.
+
+음성 텍스트: "${text}"
+
+반환 JSON:
+{
+  "action": "create_task|create_appt|query_date|navigate_today|tab_calendar|tab_kanban|unknown",
+  "modalType": "task|appointment|null",
+  "title": "업무/약속 제목 (생성 명령일 때만, 없으면 null)",
+  "task_date": "YYYY-MM-DD (날짜 언급 시, 없으면 null)",
+  "task_time": "HH:MM (시간 언급 시, 없으면 null)",
+  "due_date": "YYYY-MM-DD (종료날짜 언급 시, 없으면 null)",
+  "priority": "high|medium|low|null",
+  "duration": 분수(숫자)|null
+}
+
+의도 분류 기준:
+- create_task: 업무/할일/태스크 생성 ("새 업무", "할 일 추가", "보고서 제출 업무 만들어줘", 날짜+업무내용)
+- create_appt: 약속/미팅/회의 생성 ("새 약속", "미팅 잡아줘", "내일 2시 팀 회의", 날짜+시간+만남내용)
+- query_date: 특정 날짜 일정 조회 ("4월8일 약속 확인해줘", "오늘 일정 보여줘", "이번 주 알려줘", "뭐 있어")
+- navigate_today: 오늘로 이동 ("오늘", "오늘 날짜로", "오늘로 가줘")
+- tab_calendar: 캘린더 탭 전환 ("캘린더", "달력", "캘린더로")
+- tab_kanban: 칸반 탭 전환 ("보드", "칸반", "kanban", "칸반으로")
+- unknown: 위에 해당 없음
+
+중요:
+- "확인", "보여줘", "알려줘", "뭐야", "조회", "있어" 키워드 → query_date 우선
+- 날짜+시간+행동이 명확하면 create_task 또는 create_appt
+- 약속/미팅/회의/만남 → modalType: "appointment"
+- 업무/할일/태스크/작업 → modalType: "task"
+- 시간 언급("오전 10시", "14시") + 만남 내용 → create_appt`;
+
+  return await callGemini(prompt, true);
+}
+
+// ── 5. 스마트 시간대 추천 ─────────────────────────────────────────────────────
 // 기존 일정 패턴 분석 → { time: "HH:MM", reason: "이유" } 반환
 export async function suggestTime(title, existingTasks, date) {
   const occupied = existingTasks

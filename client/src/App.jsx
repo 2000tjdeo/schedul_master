@@ -190,35 +190,30 @@ export default function App() {
     setCreateType('appointment'); setCreateDate(date ?? selectedDate); setShowCreate(true);
   }, [selectedDate]);
 
-  // ── 글로벌 음성 명령: 자연어 → 업무 생성 모달 열기 ────────────────────────
-  const handleNLVoiceCommand = useCallback((parsed, rawText) => {
-    // NL 파싱 결과를 가지고 업무 모달 열기 (날짜/시간 정보 포함 시 자동 반영)
-    setCreateType('task');
-    setCreateDate(parsed.task_date ?? selectedDate);
-    setShowCreate(true);
-    // 모달이 열린 후 NL 텍스트를 주입하기 위해 약간의 딜레이 후 처리
-    // (UnifiedCreateModal 내부 NLStrip에서 직접 parseNL 처리하므로 rawText를 state로 전달)
-    setVoiceNLText(rawText);
-  }, [selectedDate]);
-
   // 음성으로 인식된 자연어 텍스트 (UnifiedCreateModal에 전달용)
   const [voiceNLText, setVoiceNLText] = useState('');
 
-  // ── useGlobalVoice 훅 연결 ───────────────────────────────────────────────────
+  // ── 글로벌 음성 명령: 자연어 텍스트 → 모달 열기 + NL 텍스트 전달 ─────────────
+  // modalType: 'task' | 'appointment' | null (Gemini가 판단, null이면 키워드로 추정)
+  const handleNLVoiceCommand = useCallback((parsed, rawText, modalType = null) => {
+    const isAppt = modalType === 'appointment' ||
+      (!modalType && (rawText.includes('약속') || rawText.includes('미팅') || rawText.includes('회의')));
+    setCreateType(isAppt ? 'appointment' : 'task');
+    setCreateDate(parsed.task_date ?? parsed.date ?? selectedDate);
+    setVoiceNLText(rawText); // NLStrip에 텍스트 자동 주입 → Gemini로 폼 자동 채움
+    setShowCreate(true);
+  }, [selectedDate]);
+
+  // ── useGlobalVoice 훅 연결 (PTT + Gemini) ───────────────────────────────────
   const { status: voiceStatus, startListening, stopListening, supported: voiceSupported } = useGlobalVoice({
     onCreateTask:  () => openCreateTask(),
     onCreateAppt:  () => openCreateAppt(),
     onTabChange:   setActiveTab,
     onSelectToday: () => setSelectedDate(new Date().toISOString().slice(0, 10)),
+    onSelectDate:  (ymd) => setSelectedDate(ymd),  // 조회 명령: 해당 날짜로 이동
     onNLCommand:   handleNLVoiceCommand,
     onShowToast:   (msg) => useTaskStore.getState().showToast(msg, 'info'),
   });
-
-  // 마이크 토글 (듣는 중이면 중지, 아니면 시작)
-  const handleVoiceToggle = useCallback(() => {
-    if (voiceStatus === 'listening') stopListening();
-    else startListening();
-  }, [voiceStatus, startListening, stopListening]);
 
   const allTasks = tasks || [];
   
@@ -298,14 +293,15 @@ export default function App() {
           onTabChange={setActiveTab}
           onAdmin={() => setShowAdmin(true)}
           voiceStatus={voiceStatus}
-          onVoiceToggle={handleVoiceToggle}
+          onVoiceStart={startListening}
+          onVoiceStop={stopListening}
           voiceSupported={voiceSupported}
         />
 
         {/* ── 음성 인식 중 오버레이 ── */}
         {(voiceStatus === 'listening' || voiceStatus === 'processing') && (
           <div
-            onClick={stopListening}
+            onClick={voiceStatus === 'listening' ? stopListening : undefined}
             style={{
               position: 'fixed', inset: 0, zIndex: 200,
               background: 'rgba(0,0,0,0.45)',
@@ -337,7 +333,7 @@ export default function App() {
               </p>
               <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, fontFamily: 'Inter' }}>
                 {voiceStatus === 'listening'
-                  ? '"새 업무", "새 약속", "캘린더" 등을 말해보세요'
+                  ? '말하고 버튼을 떼면 AI가 처리합니다'
                   : '잠시만 기다려주세요'}
               </p>
             </div>
@@ -350,7 +346,7 @@ export default function App() {
                 display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center',
                 maxWidth: 480,
               }}>
-                {['새 업무', '새 약속', '캘린더', '보드', '오늘'].map(cmd => (
+                {['내일 2시 팀 미팅', '새 업무', '4월8일 확인', '캘린더', '오늘'].map(cmd => (
                   <span key={cmd} style={{
                     background: 'rgba(255,255,255,0.15)',
                     borderRadius: 20, padding: '6px 14px',
@@ -445,7 +441,7 @@ export default function App() {
 
       {selectedAppt && <AppointmentModal appt={selectedAppt} currentUser={currentUser} onClose={() => setSelectedAppt(null)} onUpdate={async (id, data) => { const result = await updateAppointment(id, data); if (!result?.error) setSelectedAppt(result); return result; }} onDelete={deleteAppointment} />}
       {selectedTask && <TaskModal task={selectedTask} users={users} currentUser={currentUser} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onAddComment={handleAddComment} getComments={getComments} />}
-      {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} users={users} currentUser={currentUser} onClose={() => setShowCreate(false)} onCreate={async (data) => { await handleCreateTask(data); fetchTasks(); }} onCreateAppt={async (data) => { await addAppointment(data); fetchAppointments(); }} />}
+      {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} initialNLText={voiceNLText} users={users} currentUser={currentUser} onClose={() => { setShowCreate(false); setVoiceNLText(''); }} onCreate={async (data) => { await handleCreateTask(data); fetchTasks(); }} onCreateAppt={async (data) => { await addAppointment(data); fetchAppointments(); }} />}
       {showAdmin && <AdminPage currentUser={currentUser} onClose={() => setShowAdmin(false)} />}
       <Toast toast={toast} />
       <style>{`* { box-sizing: border-box; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; display: inline-block; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
