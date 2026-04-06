@@ -278,21 +278,9 @@ export default function App() {
     archived: archivedTasks.length
   };
 
-  if (!currentUser) return <LoginModal onLogin={handleLogin} />;
-  
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: STITCH.bg }}>
-        <div style={{ width: 40, height: 40, border: '4px solid #e5e7eb', borderTopColor: ACCENT, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
-  // ── 캘린더 드래그앤드롭: 날짜 이동 핸들러 ─────────────────────────────────────
+  // ── 캘린더 드래그앤드롭: 날짜 이동 핸들러 (early return 위에 선언 필수) ────────
   const handleTaskDateDrop = useCallback(async (task, newYmd) => {
     const updates = { task_date: newYmd };
-    // 기간 업무(task_date ~ due_date)는 오프셋 유지하며 같이 이동
     if (task.task_date && task.due_date && task.task_date !== task.due_date) {
       const start = new Date(task.task_date);
       const end   = new Date(task.due_date);
@@ -312,6 +300,18 @@ export default function App() {
     fetchAppointments();
     useTaskStore.getState().showToast(`"${appt.title}" → ${newYmd.slice(5).replace('-', '/')} 이동됨 ✅`, 'success');
   }, [updateAppointment, fetchAppointments]);
+
+  // ── early return: 로그인 안 된 경우 / 로딩 중 ─────────────────────────────────
+  if (!currentUser) return <LoginModal onLogin={handleLogin} />;
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: STITCH.bg }}>
+        <div style={{ width: 40, height: 40, border: '4px solid #e5e7eb', borderTopColor: ACCENT, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   const calProps = { tasks: filteredTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop };
   const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask };
