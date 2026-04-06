@@ -204,14 +204,52 @@ export default function App() {
     setShowCreate(true);
   }, [selectedDate]);
 
+  // ── 음성 명령: 기존 항목 날짜 이동 ("팀 미팅 내일로 이동해줘") ─────────────────
+  const handleMoveItem = useCallback(async (title, modalType, newYmd) => {
+    const searchTitle = title.toLowerCase();
+    const showToast = useTaskStore.getState().showToast;
+
+    // 약속에서 먼저 검색 (modalType이 appointment이거나 미지정)
+    if (modalType !== 'task') {
+      const match = appointments.find(a =>
+        a.title.toLowerCase().includes(searchTitle) ||
+        searchTitle.includes(a.title.toLowerCase())
+      );
+      if (match) {
+        await updateAppointment(match.id, { date: newYmd });
+        fetchAppointments();
+        showToast(`"${match.title}" → ${newYmd.slice(5).replace('-', '/')} 이동됨 ✅`, 'success');
+        setSelectedDate(newYmd);
+        return;
+      }
+    }
+    // 업무에서 검색
+    if (modalType !== 'appointment') {
+      const match = (tasks || []).find(t =>
+        t.title.toLowerCase().includes(searchTitle) ||
+        searchTitle.includes(t.title.toLowerCase())
+      );
+      if (match) {
+        await updateTask(match.id, { task_date: newYmd });
+        fetchTasks();
+        showToast(`"${match.title}" → ${newYmd.slice(5).replace('-', '/')} 이동됨 ✅`, 'success');
+        setSelectedDate(newYmd);
+        return;
+      }
+    }
+    // 찾지 못한 경우
+    showToast(`"${title}"을(를) 찾을 수 없습니다 😅`, 'error');
+  }, [appointments, tasks, updateAppointment, updateTask, fetchAppointments, fetchTasks]);
+
   // ── useGlobalVoice 훅 연결 (PTT + Gemini) ───────────────────────────────────
   const { status: voiceStatus, startListening, stopListening, supported: voiceSupported } = useGlobalVoice({
     onCreateTask:  () => openCreateTask(),
     onCreateAppt:  () => openCreateAppt(),
     onTabChange:   setActiveTab,
     onSelectToday: () => setSelectedDate(new Date().toISOString().slice(0, 10)),
-    onSelectDate:  (ymd) => setSelectedDate(ymd),  // 조회 명령: 해당 날짜로 이동
+    onSelectDate:  (ymd) => setSelectedDate(ymd),
     onNLCommand:   handleNLVoiceCommand,
+    onMoveItem:    handleMoveItem,  // 날짜 이동 음성 명령
     onShowToast:   (msg) => useTaskStore.getState().showToast(msg, 'info'),
   });
 

@@ -109,9 +109,9 @@ export async function detectVoiceIntent(text) {
 
 반환 JSON:
 {
-  "action": "create_task|create_appt|query_date|navigate_today|tab_calendar|tab_kanban|unknown",
+  "action": "create_task|create_appt|move_item|query_date|navigate_today|tab_calendar|tab_kanban|unknown",
   "modalType": "task|appointment|null",
-  "title": "업무/약속 제목 (생성 명령일 때만, 없으면 null)",
+  "title": "업무/약속 제목 (생성/이동 명령일 때, 없으면 null)",
   "task_date": "YYYY-MM-DD (날짜 언급 시, 없으면 null)",
   "task_time": "HH:MM (시간 언급 시, 없으면 null)",
   "due_date": "YYYY-MM-DD (종료날짜 언급 시, 없으면 null)",
@@ -122,6 +122,8 @@ export async function detectVoiceIntent(text) {
 의도 분류 기준:
 - create_task: 업무/할일/태스크 생성 ("새 업무", "할 일 추가", "보고서 제출 업무 만들어줘", 날짜+업무내용)
 - create_appt: 약속/미팅/회의 생성 ("새 약속", "미팅 잡아줘", "내일 2시 팀 회의", 날짜+시간+만남내용)
+- move_item: 기존 일정/업무 날짜 이동 ("팀 미팅 내일로 이동", "회의를 4월10일로 변경", "약속 미뤄줘")
+  → title: 이동할 항목 이름, task_date: 새 날짜, modalType: task|appointment
 - query_date: 특정 날짜 일정 조회 ("4월8일 약속 확인해줘", "오늘 일정 보여줘", "이번 주 알려줘", "뭐 있어")
 - navigate_today: 오늘로 이동 ("오늘", "오늘 날짜로", "오늘로 가줘")
 - tab_calendar: 캘린더 탭 전환 ("캘린더", "달력", "캘린더로")
@@ -129,6 +131,7 @@ export async function detectVoiceIntent(text) {
 - unknown: 위에 해당 없음
 
 중요:
+- "이동", "변경", "미루다", "당기다", "옮기다" + 날짜 → move_item 우선
 - "확인", "보여줘", "알려줘", "뭐야", "조회", "있어" 키워드 → query_date 우선
 - 날짜+시간+행동이 명확하면 create_task 또는 create_appt
 - 약속/미팅/회의/만남 → modalType: "appointment"

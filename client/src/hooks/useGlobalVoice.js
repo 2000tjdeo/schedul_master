@@ -23,6 +23,7 @@ export default function useGlobalVoice({
   onSelectToday,   // () => void              - 오늘 날짜 선택
   onSelectDate,    // (ymd: string)           - 특정 날짜로 이동
   onNLCommand,     // (parsed, rawText, type) - 자연어 생성 명령
+  onMoveItem,      // (title, modalType, newYmd) - 기존 항목 날짜 이동
   onShowToast,     // (message: string)       - 토스트 메시지
 }) {
 
@@ -44,6 +45,13 @@ export default function useGlobalVoice({
   // ── 오늘로 이동 키워드 ────────────────────────────────────────────────────────
   const isTodayIntent = (t) =>
     t === '오늘' || t.startsWith('오늘로') || t.includes('오늘 날짜') || t === 'today';
+
+  // ── 날짜 이동 키워드 (Gemini 없을 때 폴백용) ─────────────────────────────────
+  const isMoveIntent = (t) =>
+    (t.includes('이동') || t.includes('변경') || t.includes('미루') ||
+     t.includes('당기') || t.includes('옮기')) &&
+    (t.includes('일') || t.includes('월') || t.includes('내일') ||
+     t.includes('모레') || t.includes('오늘'));
 
   // ── 명확한 생성 키워드 (이것이 있어야만 Gemini 없이 생성 모달 열림) ─────────────
   const isExplicitCreateTask = (t) =>
@@ -130,6 +138,18 @@ export default function useGlobalVoice({
           }
           return;
 
+        case 'move_item': {
+          // "팀 미팅 내일로 이동", "회의 4월10일로 변경" 등
+          const newDate = intent.task_date || new Date().toISOString().slice(0, 10);
+          const itemTitle = intent.title;
+          if (itemTitle && newDate) {
+            onMoveItem?.(itemTitle, intent.modalType, newDate);
+          } else {
+            onShowToast?.('이동할 항목 이름이나 날짜를 말해주세요 🗓️');
+          }
+          return;
+        }
+
         case 'query_date': {
           const targetDate = intent.task_date || new Date().toISOString().slice(0, 10);
           onSelectDate?.(targetDate);
@@ -158,11 +178,18 @@ export default function useGlobalVoice({
       }
     }
 
-    // ─── Step 3: Gemini 실패 / unknown → 날짜+시간이 있으면 자연어 생성 시도 ──
-    //  주의: title만 있는 경우는 생성 모달 열지 않음 (잘못 인식 방지)
+    // ─── Step 3: Gemini 실패 / unknown → 키워드 기반 폴백 ───────────────────
     const parsed = parseNL(text);
+
+    // 날짜 이동 키워드 (폴백)
+    if (isMoveIntent(t) && parsed?.task_date && parsed?.title) {
+      const isAppt = t.includes('약속') || t.includes('미팅') || t.includes('회의');
+      onMoveItem?.(parsed.title, isAppt ? 'appointment' : 'task', parsed.task_date);
+      return;
+    }
+
+    // 날짜/시간 있으면 생성 모달 (title만 있는 경우는 제외)
     if (parsed && (parsed.task_date || parsed.task_time)) {
-      // 날짜나 시간이 파싱된 경우만 생성 모달 열기
       const isAppt = t.includes('약속') || t.includes('미팅') || t.includes('회의');
       onNLCommand?.(parsed, text, isAppt ? 'appointment' : 'task');
       onShowToast?.(`"${text}" 인식됨 — 모달에서 확인하세요`);
@@ -171,7 +198,7 @@ export default function useGlobalVoice({
 
     // 인식 실패
     onShowToast?.(`"${text}" — 명령을 이해하지 못했습니다 🤔`);
-  }, [onCreateTask, onCreateAppt, onTabChange, onSelectToday, onSelectDate, onNLCommand, onShowToast]);
+  }, [onCreateTask, onCreateAppt, onTabChange, onSelectToday, onSelectDate, onNLCommand, onMoveItem, onShowToast]);
 
   // useSpeech 훅 연결 (PTT 모드)
   const { status, startListening, stopListening, supported } = useSpeech({

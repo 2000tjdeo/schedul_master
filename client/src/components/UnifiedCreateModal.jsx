@@ -107,7 +107,7 @@ function ChipBtn({ label, selected = false, onClick, color }) {
 }
 
 // ─── NLStrip ──────────────────────────────────────────────────────────────────
-function NLStrip({ onParsed, isAppt }) {
+function NLStrip({ onParsed, isAppt, initialText = '' }) {
   const [text, setText] = useState('');
   const [showChips, setShowChips] = useState(false);
   const [dbChips, setDbChips] = useState([]);
@@ -118,6 +118,21 @@ function NLStrip({ onParsed, isAppt }) {
   useEffect(() => {
     supabase.from('sm_chip_presets').select('*').then(({ data }) => { if (Array.isArray(data)) setDbChips(data); });
   }, []);
+
+  // 음성으로 넘어온 텍스트가 있으면 자동으로 파싱해서 폼 채움
+  useEffect(() => {
+    if (!initialText) return;
+    setText(initialText);
+    const local = parseNL(initialText);
+    onParsed(local);
+    // Gemini AI로도 추가 파싱
+    setAiLoading(true);
+    parseNLWithGemini(initialText).then(ai => {
+      setAiLoading(false);
+      if (ai) onParsed({ ...local, ...Object.fromEntries(Object.entries(ai).filter(([, v]) => v != null)) });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialText]);
 
   // Gemini AI 파싱 — Enter 키 또는 음성 완료 시 호출
   const runAIParse = async (t) => {
@@ -376,7 +391,7 @@ function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, e
 }
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
-export default function UnifiedCreateModal({ defaultType = 'task', defaultDate = null, defaultStatus = 'todo', users = [], currentUser, onClose, onCreate, onCreateAppt }) {
+export default function UnifiedCreateModal({ defaultType = 'task', defaultDate = null, defaultStatus = 'todo', initialNLText = '', users = [], currentUser, onClose, onCreate, onCreateAppt }) {
   const initDate = defaultDate || todayStr();
   const [type, setType] = useState(defaultType);
   const [loading, setLoading] = useState(false);
@@ -461,7 +476,7 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <NLStrip onParsed={handleNLParsed} isAppt={isAppt} />
+          <NLStrip onParsed={handleNLParsed} isAppt={isAppt} initialText={initialNLText} />
           <Card>
             <CardRow><input type="text" placeholder="Title" value={isAppt ? appt.title : task.title} onChange={e => isAppt ? setAppt(a => ({...a, title:e.target.value})) : setTask(t => ({...t, title:e.target.value}))} style={{ width: '100%', border: 'none', outline: 'none', fontSize: 18, fontWeight: 800, fontFamily: 'Manrope', color: '#1a1c1c' }} /></CardRow>
             <CardRow noBorder>
