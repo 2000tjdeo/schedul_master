@@ -13,7 +13,7 @@ const CAL_TABS = [
   { id: 'year',  label: 'Year' },
 ];
 
-export default function CalendarPanel({ tasks, appointments = [], selectedDate, onSelectDate, onTaskClick, onApptClick, onCreateAppt }) {
+export default function CalendarPanel({ tasks, appointments = [], selectedDate, onSelectDate, onTaskClick, onApptClick, onCreateAppt, onTaskDateDrop, onApptDateDrop }) {
   const [calTab, setCalTab] = useState('month');
   const [viewYear, setViewYear] = useState(() => {
     const d = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
@@ -128,6 +128,8 @@ export default function CalendarPanel({ tasks, appointments = [], selectedDate, 
               onSelectDate={onSelectDate}
               onTaskClick={onTaskClick}
               onApptClick={onApptClick}
+              onTaskDateDrop={onTaskDateDrop}
+              onApptDateDrop={onApptDateDrop}
             />
           )}
           {calTab === 'week' && (

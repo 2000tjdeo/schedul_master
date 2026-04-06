@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useRef } from 'react';
 import { getMonthMatrix, toYMD, isToday, isPast } from '../../utils/dateUtils.js';
 import { CATEGORY_COLORS, ACCENT } from '../../utils/colorMap.js';
 import { getHoliday } from '../../utils/koreanHolidays.js';
 
 const DOW_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 
+// ── 드래그 중인 아이템 전역 참조 ─────────────────────────────────────────────
+// { type: 'task'|'appt', item: object, sourceYmd: string }
+const dragState = { current: null };
+
 // ── 기간 업무 bar ──────────────────────────────────────────────────────────
 function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave }) {
   const colors = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['기타'];
   const past   = isPast(task.due_date || task.task_date);
-  
+
   return (
     <div style={{
       position: 'relative',
@@ -21,6 +24,17 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
       zIndex: hovered ? 20 : 1,
     }}>
       <div
+        draggable
+        onDragStart={(e) => {
+          e.stopPropagation();
+          dragState.current = {
+            type: 'task',
+            item: task,
+            sourceYmd: task.task_date || task.due_date,
+          };
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        onDragEnd={() => { dragState.current = null; }}
         onMouseEnter={onEnter}
         onMouseLeave={onLeave}
         onClick={e => { e.stopPropagation(); onTaskClick?.(task); }}
@@ -33,7 +47,7 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
           borderRadius: isFirst && isLast ? 4 : isFirst ? '4px 0 0 4px' : isLast ? '0 4px 4px 0' : 0,
           background: colors.bg,
           border: `1px solid ${colors.border}44`,
-          cursor: 'pointer',
+          cursor: 'grab',
           overflow: 'hidden',
           transition: 'all 0.14s ease',
           display: 'flex', alignItems: 'center',
@@ -57,10 +71,23 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
 }
 
 // ── 칩 (약속 / 단일 업무) ───────────────────────────────────────────────────
-function ItemChip({ color, label, sub, onClick }) {
+function ItemChip({ color, label, sub, onClick, dragItem }) {
   const [hovered, setHovered] = useState(false);
+
   return (
     <div
+      draggable={!!dragItem}
+      onDragStart={(e) => {
+        if (!dragItem) return;
+        e.stopPropagation();
+        dragState.current = {
+          type: dragItem.type,
+          item: dragItem.item,
+          sourceYmd: dragItem.sourceYmd,
+        };
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => { dragState.current = null; }}
       onClick={e => { e.stopPropagation(); onClick?.(); }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -72,7 +99,7 @@ function ItemChip({ color, label, sub, onClick }) {
         borderRadius: 4,
         background: hovered ? `${color}25` : `${color}12`,
         border: `1px solid ${color}22`,
-        cursor: 'pointer',
+        cursor: 'grab',
         overflow: 'hidden',
         transition: 'all 0.15s',
       }}
@@ -112,8 +139,13 @@ function isMultiDay(task) {
 export default function CalendarGrid({
   year, month, tasks, appointments = [],
   selectedDate, onSelectDate, onTaskClick, onApptClick,
+  onTaskDateDrop,   // (task, newYmd) → 업무 날짜 이동
+  onApptDateDrop,   // (appt, newYmd) → 약속 날짜 이동
 }) {
-  const [hoveredId, setHoveredId] = useState(null);
+  const [hoveredId, setHoveredId]     = useState(null);
+  const [dragOverYmd, setDragOverYmd] = useState(null); // 드롭 대상 날짜 강조
+  const dragCounterRef = useRef({});  // 날짜별 dragenter 카운터
+
   const weeks = getMonthMatrix(year, month);
 
   const getApptForDay  = (ymd) => appointments.filter(a => a.date === ymd);
@@ -125,6 +157,44 @@ export default function CalendarGrid({
     const end   = a <= (b || a) ? (b || a) : a;
     return start <= ymd && ymd <= end;
   });
+
+  // ── 드래그앤드롭 핸들러 ────────────────────────────────────────────────────
+  const handleDragEnter = (ymd, e) => {
+    e.preventDefault();
+    if (!dragCounterRef.current[ymd]) dragCounterRef.current[ymd] = 0;
+    dragCounterRef.current[ymd]++;
+    setDragOverYmd(ymd);
+  };
+
+  const handleDragLeave = (ymd) => {
+    dragCounterRef.current[ymd] = Math.max(0, (dragCounterRef.current[ymd] || 1) - 1);
+    if (dragCounterRef.current[ymd] === 0) {
+      setDragOverYmd(prev => prev === ymd ? null : prev);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (ymd, e) => {
+    e.preventDefault();
+    dragCounterRef.current[ymd] = 0;
+    setDragOverYmd(null);
+
+    const d = dragState.current;
+    if (!d) return;
+    if (d.sourceYmd === ymd) return; // 같은 날짜면 무시
+
+    if (d.type === 'task') {
+      onTaskDateDrop?.(d.item, ymd);
+    } else if (d.type === 'appt') {
+      onApptDateDrop?.(d.item, ymd);
+    }
+
+    dragState.current = null;
+  };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -146,12 +216,12 @@ export default function CalendarGrid({
       </div>
 
       {/* 날짜 셀 */}
-      <div style={{ 
-        flex: 1, 
-        display: 'grid', 
-        gridTemplateRows: 'repeat(6, 1fr)', 
+      <div style={{
+        flex: 1,
+        display: 'grid',
+        gridTemplateRows: 'repeat(6, 1fr)',
         overflow: 'hidden',
-        height: '100%', // 고정 높이 보장
+        height: '100%',
       }}>
         {weeks.map((week, wi) => (
           <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
@@ -162,52 +232,58 @@ export default function CalendarGrid({
               const isTodayDay     = isToday(ymd);
               const bg             = getDayBg(di, isCurrentMonth, isTodayDay, isSelected);
               const holiday        = getHoliday(ymd);
+              const isDragTarget   = dragOverYmd === ymd; // 드롭 대상 강조
 
-              const dayAppts       = getApptForDay(ymd);
-              const allDayTasks    = getTasksForDay(ymd);
+              const dayAppts    = getApptForDay(ymd);
+              const allDayTasks = getTasksForDay(ymd);
 
-              // ── 분리: 기간 업무(bar) vs 단일 업무(dot) ──────────────────
               const barTasks  = allDayTasks.filter(isMultiDay);
               const dotTasks  = allDayTasks.filter(t => !isMultiDay(t));
 
-              // 최대 표시 개수 (공간에 맞춰 제한 - 압축되어 더 많이 표시 가능)
               const MAX_BARS = 3;
               const MAX_CHIPS = 3;
-              const visibleBars = barTasks.slice(0, MAX_BARS);
-              // 칩: 약속 + 단일 업무 합산
-              const dotAppts   = dayAppts;
+              const visibleBars     = barTasks.slice(0, MAX_BARS);
+              const dotAppts        = dayAppts;
               const visibleDotAppts = dotAppts.slice(0, MAX_CHIPS);
               const visibleDotTasks = dotTasks.slice(0, Math.max(0, MAX_CHIPS - visibleDotAppts.length));
-              
+
               const overflowBars = Math.max(0, barTasks.length - MAX_BARS);
               const overflowDots = Math.max(0,
                 (dotAppts.length - visibleDotAppts.length) +
-                (dotTasks.length  - visibleDotTasks.length));
+                (dotTasks.length - visibleDotTasks.length));
               const overflow = overflowBars + overflowDots;
 
               return (
                 <div
                   key={ymd}
-                  onClick={() => onSelectDate(ymd)}
+                  onClick={() => !dragState.current && onSelectDate(ymd)}
+                  onDragEnter={(e) => handleDragEnter(ymd, e)}
+                  onDragLeave={() => handleDragLeave(ymd)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(ymd, e)}
                   style={{
                     borderTop:   '1px solid #f1f1f1',
                     borderRight: di < 6 ? '1px solid #f1f1f1' : 'none',
-                    minHeight: 0, // 1fr로 고정하기 위해 0으로 설정
+                    minHeight: 0,
                     padding: '8px 6px',
-                    cursor: 'pointer',
-                    background: bg,
+                    cursor: isDragTarget ? 'copy' : 'pointer',
+                    background: isDragTarget
+                      ? `${ACCENT}14`   // 드롭 대상: 연보라 강조
+                      : bg,
                     position: 'relative',
-                    overflow: 'hidden', // 칸이 확장되지 않도록 강제
+                    overflow: 'hidden',
                     transition: 'background 0.1s',
                     display: 'flex', flexDirection: 'column',
+                    outline: isDragTarget ? `2px dashed ${ACCENT}` : 'none',
+                    outlineOffset: '-2px',
                   }}
                   onMouseEnter={e => {
-                    if (!isTodayDay && !isSelected)
+                    if (!isDragTarget && !isTodayDay && !isSelected)
                       e.currentTarget.style.background =
                         di === 5 ? '#e8eeff' : di === 6 ? '#ffe8e8' : '#f5f5f5';
                   }}
                   onMouseLeave={e => {
-                    if (!isTodayDay && !isSelected)
+                    if (!isDragTarget && !isTodayDay && !isSelected)
                       e.currentTarget.style.background = bg;
                   }}
                 >
@@ -220,7 +296,7 @@ export default function CalendarGrid({
                       flexShrink: 0,
                     }}>
                       <span style={{
-                        fontSize: 13, fontWeight: (isTodayDay || isTodayDay) ? 800 : 500, lineHeight: 1,
+                        fontSize: 13, fontWeight: isTodayDay ? 800 : 500, lineHeight: 1,
                         color: isTodayDay      ? '#fff'
                              : !isCurrentMonth ? '#ccc'
                              : (holiday && (holiday.type === 'holiday' || holiday.type === 'substitute')) ? '#e05555'
@@ -243,7 +319,7 @@ export default function CalendarGrid({
                     )}
                   </div>
 
-                  {/* ── 기간 업무 bars ───────────────────────────────── */}
+                  {/* ── 기간 업무 bars ─────────────────────────────────── */}
                   {visibleBars.map(t => {
                     const start   = t.task_date || t.due_date;
                     const end     = t.due_date   || t.task_date;
@@ -260,7 +336,7 @@ export default function CalendarGrid({
                     );
                   })}
 
-                  {/* ── 칩 행: 약속 + 단일 업무 ─────────────────────── */}
+                  {/* ── 칩 행: 약속 + 단일 업무 ──────────────────────── */}
                   {(visibleDotAppts.length > 0 || visibleDotTasks.length > 0) && (
                     <div style={{
                       display: 'flex', flexDirection: 'column', gap: 2,
@@ -275,6 +351,7 @@ export default function CalendarGrid({
                           label={a.title}
                           sub={a.start_time ? a.start_time.slice(0, 5) : undefined}
                           onClick={() => onApptClick?.(a)}
+                          dragItem={{ type: 'appt', item: a, sourceYmd: a.date }}
                         />
                       ))}
                       {/* 단일 업무 칩 */}
@@ -287,6 +364,7 @@ export default function CalendarGrid({
                             label={t.title}
                             sub={t.task_time ? t.task_time.slice(0, 5) : undefined}
                             onClick={() => onTaskClick?.(t)}
+                            dragItem={{ type: 'task', item: t, sourceYmd: t.task_date || t.due_date }}
                           />
                         );
                       })}
@@ -301,7 +379,7 @@ export default function CalendarGrid({
                   )}
 
                   {/* 선택 테두리 */}
-                  {isSelected && (
+                  {isSelected && !isDragTarget && (
                     <div style={{
                       position: 'absolute', inset: 0,
                       border: `2px solid ${ACCENT}`,

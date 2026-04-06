@@ -251,7 +251,31 @@ export default function App() {
     );
   }
 
-  const calProps = { tasks: filteredTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt };
+  // ── 캘린더 드래그앤드롭: 날짜 이동 핸들러 ─────────────────────────────────────
+  const handleTaskDateDrop = useCallback(async (task, newYmd) => {
+    const updates = { task_date: newYmd };
+    // 기간 업무(task_date ~ due_date)는 오프셋 유지하며 같이 이동
+    if (task.task_date && task.due_date && task.task_date !== task.due_date) {
+      const start = new Date(task.task_date);
+      const end   = new Date(task.due_date);
+      const newStart = new Date(newYmd);
+      const offsetDays = Math.round((newStart - start) / 86400000);
+      const newEnd = new Date(end);
+      newEnd.setDate(newEnd.getDate() + offsetDays);
+      updates.due_date = newEnd.toISOString().slice(0, 10);
+    }
+    await updateTask(task.id, updates);
+    fetchTasks();
+    useTaskStore.getState().showToast(`"${task.title}" → ${newYmd.slice(5).replace('-', '/')} 이동됨 ✅`, 'success');
+  }, [updateTask, fetchTasks]);
+
+  const handleApptDateDrop = useCallback(async (appt, newYmd) => {
+    await updateAppointment(appt.id, { date: newYmd });
+    fetchAppointments();
+    useTaskStore.getState().showToast(`"${appt.title}" → ${newYmd.slice(5).replace('-', '/')} 이동됨 ✅`, 'success');
+  }, [updateAppointment, fetchAppointments]);
+
+  const calProps = { tasks: filteredTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop };
   const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask };
 
   return (
