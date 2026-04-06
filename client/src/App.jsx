@@ -242,7 +242,7 @@ export default function App() {
   }, [appointments, tasks, updateAppointment, updateTask, fetchAppointments, fetchTasks]);
 
   // ── useGlobalVoice 훅 연결 (PTT + Gemini) ───────────────────────────────────
-  const { status: voiceStatus, startListening, stopListening, supported: voiceSupported } = useGlobalVoice({
+  const { status: voiceStatus, startListening, stopListening, supported: voiceSupported, convQuestion } = useGlobalVoice({
     onCreateTask:  () => openCreateTask(),
     onCreateAppt:  () => openCreateAppt(),
     onTabChange:   setActiveTab,
@@ -393,10 +393,22 @@ export default function App() {
               <p style={{ color: '#fff', fontSize: 20, fontWeight: 800, fontFamily: 'Manrope', marginBottom: 8 }}>
                 {voiceStatus === 'listening' ? '듣고 있습니다...' : 'AI가 처리 중...'}
               </p>
+              {/* 대화 중일 때: AI 질문 표시 */}
+              {convQuestion && (
+                <div style={{
+                  background: 'rgba(255,255,255,0.18)', borderRadius: 14,
+                  padding: '10px 20px', marginBottom: 8,
+                  color: '#fff', fontSize: 15, fontWeight: 700, fontFamily: 'Manrope',
+                }}>
+                  💬 {convQuestion}
+                </div>
+              )}
               <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, fontFamily: 'Inter' }}>
-                {voiceStatus === 'listening'
-                  ? '말하고 버튼을 떼면 AI가 처리합니다'
-                  : '잠시만 기다려주세요'}
+                {convQuestion
+                  ? '버튼을 꾹 눌러서 답변하세요'
+                  : voiceStatus === 'listening'
+                    ? '말하고 버튼을 떼면 AI가 처리합니다'
+                    : '잠시만 기다려주세요'}
               </p>
             </div>
 

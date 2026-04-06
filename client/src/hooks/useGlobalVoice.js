@@ -1,59 +1,193 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import useSpeech from './useSpeech.js';
+import useTTS    from './useTTS.js';
 import { parseNL } from '../utils/nlParser.js';
 import { detectVoiceIntent } from '../utils/gemini.js';
 
 /**
- * useGlobalVoice - 앱 전체에서 사용하는 음성 명령 훅 (PTT + Gemini AI)
+ * useGlobalVoice - PTT 음성 명령 + Gemini AI + 대화형 일정 수집
  *
- * ── 처리 순서 ──────────────────────────────────────────────────────────────────
- *  1. 조회/탭/이동 키워드를 먼저 체크 (Gemini보다 우선)
- *     → 확인/보여줘/알려줘/캘린더/보드/오늘 등은 즉시 처리
- *  2. Gemini API로 생성 의도 분석 (create_task / create_appt)
- *  3. Gemini 실패 시 키워드 기반 폴백
+ * ── 대화 플로우 ────────────────────────────────────────────────────────────────
+ *  1. 사용자: "내일 팀 미팅 잡아줘"
+ *  2. Gemini: { action: create_appt, title: '팀 미팅', date: '내일', time: null }
+ *  3. AI 음성: "몇 시에 시작하나요?"       ← 시간이 빠졌으므로
+ *  4. 사용자: (마이크 누르고) "오후 2시"
+ *  5. AI 음성: "내일 오후 2시 팀 미팅을 생성할게요."
+ *  6. 자동으로 모달 오픈 + 폼 자동 채움
  *
- * ── 중요한 원칙 ───────────────────────────────────────────────────────────────
- *  - 조회/확인 키워드가 있으면 절대 생성 모달 열지 않음
- *  - 명확한 생성 키워드 없이는 모달 열지 않음
+ * ── 필수 항목 ────────────────────────────────────────────────────────────────
+ *  약속: 제목 + 날짜 + 시간  (세 가지 모두)
+ *  업무: 제목 + 날짜         (시간은 선택)
  */
 export default function useGlobalVoice({
-  onCreateTask,    // () => void              - 업무 생성 모달 열기
-  onCreateAppt,    // () => void              - 약속 생성 모달 열기
-  onTabChange,     // (tab: string)           - 탭 전환
-  onSelectToday,   // () => void              - 오늘 날짜 선택
-  onSelectDate,    // (ymd: string)           - 특정 날짜로 이동
+  onCreateTask,
+  onCreateAppt,
+  onTabChange,
+  onSelectToday,
+  onSelectDate,
   onNLCommand,     // (parsed, rawText, type) - 자연어 생성 명령
-  onMoveItem,      // (title, modalType, newYmd) - 기존 항목 날짜 이동
-  onShowToast,     // (message: string)       - 토스트 메시지
+  onMoveItem,      // (title, modalType, newYmd)
+  onShowToast,
 }) {
+  const { speak, stop: stopTTS } = useTTS();
 
-  // ── 날짜 레이블 변환 헬퍼 ─────────────────────────────────────────────────────
-  const toDateLabel = (ymd) =>
-    ymd ? ymd.replace(/(\d{4})-(\d{2})-(\d{2})/, '$2월 $3일') : '오늘';
+  // ── 대화 상태 (ref: 렌더 사이에 유지, 재렌더 불필요) ───────────────────────
+  const convRef = useRef({
+    active: false,
+    type: null,          // 'task' | 'appointment'
+    asking: null,        // 'title' | 'date' | 'time' — 현재 묻고 있는 항목
+    collected: { title: null, date: null, time: null },
+  });
 
-  // ── 조회 의도 키워드 (이 키워드가 있으면 절대 생성 모달 안 열림) ───────────────
+  // UI용: 현재 AI가 묻고 있는 질문 (overlay에 표시)
+  const [convQuestion, setConvQuestion] = useState(null);
+
+  // ── 헬퍼: 다음에 필요한 항목 판단 ──────────────────────────────────────────
+  const getNextMissing = (type, collected) => {
+    if (!collected.title) return 'title';
+    if (!collected.date)  return 'date';
+    if (type === 'appointment' && !collected.time) return 'time';
+    return null; // 모두 수집됨
+  };
+
+  const QUESTIONS = {
+    title: '어떤 일정인가요? 제목을 말씀해주세요.',
+    date:  '날짜가 어떻게 되나요?',
+    time:  '몇 시에 시작하나요?',
+  };
+
+  const PROMPTS = {
+    title: '"새 프로젝트 회의"처럼 말씀해주세요.',
+    date:  '"내일", "다음 주 월요일", "4월 10일"처럼 말씀해주세요.',
+    time:  '"오전 10시", "오후 2시"처럼 말씀해주세요.',
+  };
+
+  // ── 대화 시작: Gemini 파싱 결과에서 빈 필드 확인 후 질문 ──────────────────
+  const startConversation = useCallback((type, initial) => {
+    const collected = {
+      title: initial.title      || null,
+      date:  initial.task_date  || null,
+      time:  initial.task_time  || null,
+    };
+    const asking = getNextMissing(type, collected);
+
+    if (!asking) return false; // 이미 다 있음
+
+    convRef.current = { active: true, type, asking, collected };
+    setConvQuestion(QUESTIONS[asking]);
+    speak(QUESTIONS[asking]);
+    onShowToast?.(`💬 ${QUESTIONS[asking]}`);
+    return true;
+  }, [speak, onShowToast]);
+
+  // ── 대화 취소 ────────────────────────────────────────────────────────────
+  const cancelConversation = useCallback(() => {
+    convRef.current = { active: false, type: null, asking: null, collected: { title: null, date: null, time: null } };
+    setConvQuestion(null);
+    speak('일정 생성을 취소했습니다.');
+    onShowToast?.('일정 생성이 취소됐습니다');
+  }, [speak, onShowToast]);
+
+  // ── 대화 완료: 모든 필드 수집 → 모달 오픈 ───────────────────────────────
+  const finishConversation = useCallback((conv) => {
+    const { title, date, time } = conv.collected;
+    const dateLabel = date ? date.replace(/(\d{4})-(\d{2})-(\d{2})/, '$2월 $3일') : '';
+    const timeLabel = time ? ` ${time.slice(0, 5)}에` : '';
+
+    speak(`${dateLabel}${timeLabel} "${title}" 일정을 생성할게요.`);
+    setConvQuestion(null);
+
+    const parsedData = {
+      title,
+      task_date: date,
+      task_time: time || null,
+    };
+
+    // 대화 상태 초기화
+    convRef.current = { active: false, type: null, asking: null, collected: { title: null, date: null, time: null } };
+
+    // TTS가 끝난 후 모달 열기 (1.2초 대기)
+    setTimeout(() => {
+      onNLCommand?.(parsedData, title, conv.type);
+      onShowToast?.(`"${title}" 일정 생성 모달을 열었습니다 ✅`);
+    }, 1200);
+  }, [speak, onNLCommand, onShowToast]);
+
+  // ── 대화 중 답변 파싱 ───────────────────────────────────────────────────
+  const handleConvAnswer = useCallback((text) => {
+    const conv  = convRef.current;
+    const t     = text.trim().toLowerCase();
+    const parsed = parseNL(text);
+
+    // 취소 명령
+    if (t.includes('취소') || t.includes('그만') || t.includes('캔슬') || t.includes('cancel')) {
+      cancelConversation();
+      return;
+    }
+
+    // 현재 묻고 있는 항목에 맞게 파싱
+    switch (conv.asking) {
+      case 'title':
+        // 제목은 그대로 사용 (단, 너무 짧으면 재질문)
+        if (text.trim().length < 1) {
+          speak('제목을 말씀해주세요.');
+          return;
+        }
+        conv.collected.title = text.trim();
+        break;
+
+      case 'date':
+        if (!parsed.task_date) {
+          speak(`날짜를 이해하지 못했어요. ${PROMPTS.date}`);
+          return;
+        }
+        conv.collected.date = parsed.task_date;
+        break;
+
+      case 'time':
+        if (!parsed.task_time) {
+          if (conv.type === 'task') {
+            // 업무는 시간 없어도 OK
+            conv.collected.time = null;
+          } else {
+            speak(`시간을 이해하지 못했어요. ${PROMPTS.time}`);
+            return;
+          }
+        } else {
+          conv.collected.time = parsed.task_time;
+        }
+        break;
+    }
+
+    // 다음 빈 항목 확인
+    const next = getNextMissing(conv.type, conv.collected);
+    if (next) {
+      conv.asking = next;
+      setConvQuestion(QUESTIONS[next]);
+      speak(QUESTIONS[next]);
+      onShowToast?.(`💬 ${QUESTIONS[next]}`);
+    } else {
+      finishConversation({ ...conv });
+    }
+  }, [speak, cancelConversation, finishConversation, onShowToast]);
+
+  // ── 키워드 체크 함수들 ────────────────────────────────────────────────────
   const isQueryIntent = (t) =>
     t.includes('확인') || t.includes('보여줘') || t.includes('알려줘') ||
     t.includes('보여 줘') || t.includes('알려 줘') || t.includes('뭐야') ||
     t.includes('있어') || t.includes('뭐 있') || t.includes('조회') ||
     t.includes('알려') || t.includes('보여');
 
-  // ── 탭 전환 키워드 ────────────────────────────────────────────────────────────
   const isCalendarIntent = (t) => t.includes('캘린더') || t.includes('달력');
-  const isKanbanIntent = (t) => t.includes('보드') || t.includes('칸반') || t.includes('kanban');
+  const isKanbanIntent   = (t) => t.includes('보드') || t.includes('칸반') || t.includes('kanban');
+  const isTodayIntent    = (t) => t === '오늘' || t.startsWith('오늘로') || t.includes('오늘 날짜') || t === 'today';
 
-  // ── 오늘로 이동 키워드 ────────────────────────────────────────────────────────
-  const isTodayIntent = (t) =>
-    t === '오늘' || t.startsWith('오늘로') || t.includes('오늘 날짜') || t === 'today';
-
-  // ── 날짜 이동 키워드 (Gemini 없을 때 폴백용) ─────────────────────────────────
   const isMoveIntent = (t) =>
     (t.includes('이동') || t.includes('변경') || t.includes('미루') ||
      t.includes('당기') || t.includes('옮기')) &&
     (t.includes('일') || t.includes('월') || t.includes('내일') ||
      t.includes('모레') || t.includes('오늘'));
 
-  // ── 명확한 생성 키워드 (이것이 있어야만 Gemini 없이 생성 모달 열림) ─────────────
   const isExplicitCreateTask = (t) =>
     t.includes('새 업무') || t.includes('업무 추가') || t.includes('업무 만들') ||
     t.includes('할 일 추가') || t.includes('태스크') || t.includes('task 추가');
@@ -62,90 +196,96 @@ export default function useGlobalVoice({
     t.includes('새 약속') || t.includes('약속 추가') || t.includes('약속 만들') ||
     t.includes('일정 추가') || t.includes('미팅 잡') || t.includes('회의 잡');
 
-  // ── 메인 처리 함수 ────────────────────────────────────────────────────────────
+  const toDateLabel = (ymd) =>
+    ymd ? ymd.replace(/(\d{4})-(\d{2})-(\d{2})/, '$2월 $3일') : '오늘';
+
+  // ── 메인 처리 함수 ────────────────────────────────────────────────────────
   const handleResult = useCallback(async (text) => {
     const t = text.trim().toLowerCase();
 
-    // ─── Step 1: 조회/탭/이동 키워드 선행 체크 (Gemini보다 무조건 우선) ────────
-    //  이 블록에서 return하면 Gemini를 호출하지 않음
+    // ─── 대화 중이면 대화 응답 처리 (다른 명령보다 우선) ─────────────────
+    if (convRef.current.active) {
+      handleConvAnswer(text);
+      return;
+    }
 
-    // 조회: "4월8일 약속 확인해줘", "오늘 일정 보여줘" 등
+    // ─── Step 1: 조회/탭/이동 키워드 선행 체크 ───────────────────────────
     if (isQueryIntent(t)) {
       const parsed = parseNL(text);
       const targetDate = parsed?.task_date || new Date().toISOString().slice(0, 10);
       onSelectDate?.(targetDate);
       onTabChange?.('calendar');
-      onShowToast?.(`${toDateLabel(parsed?.task_date)} 일정으로 이동했습니다 📅`);
+      const label = toDateLabel(parsed?.task_date);
+      speak(`${label} 일정으로 이동했습니다.`);
+      onShowToast?.(`${label} 일정으로 이동했습니다 📅`);
       return;
     }
-
-    // 탭 전환: "캘린더", "달력"
     if (isCalendarIntent(t)) {
       onTabChange?.('calendar');
+      speak('캘린더 뷰로 이동했습니다.');
       onShowToast?.('캘린더 뷰로 이동했습니다');
       return;
     }
-
-    // 탭 전환: "보드", "칸반"
     if (isKanbanIntent(t)) {
       onTabChange?.('kanban');
+      speak('칸반 보드로 이동했습니다.');
       onShowToast?.('칸반 보드로 이동했습니다');
       return;
     }
-
-    // 오늘로 이동: "오늘"
     if (isTodayIntent(t)) {
       onSelectToday?.();
+      speak('오늘 날짜로 이동했습니다.');
       onShowToast?.('오늘 날짜로 이동했습니다');
       return;
     }
-
-    // 명확한 생성 키워드 (Gemini 없이 즉시 처리)
     if (isExplicitCreateTask(t)) {
       onCreateTask?.();
+      speak('새 업무 모달을 열었습니다.');
       onShowToast?.('새 업무 모달을 열었습니다 ✅');
       return;
     }
     if (isExplicitCreateAppt(t)) {
       onCreateAppt?.();
+      speak('새 약속 모달을 열었습니다.');
       onShowToast?.('새 약속 모달을 열었습니다 ✅');
       return;
     }
 
-    // ─── Step 2: Gemini AI로 생성 의도 분석 ─────────────────────────────────
-    //  (조회/이동 키워드가 없는 경우만 여기 도달)
+    // ─── Step 2: Gemini AI 의도 분석 ─────────────────────────────────────
     const intent = await detectVoiceIntent(text);
 
     if (intent && intent.action && intent.action !== 'unknown') {
       switch (intent.action) {
-        case 'create_task':
-          if (intent.title || intent.task_date || intent.task_time) {
-            onNLCommand?.(intent, text, 'task');
-            onShowToast?.(`"${text}" 인식됨 — 모달에서 확인하세요`);
-          } else {
-            onCreateTask?.();
-            onShowToast?.('새 업무 모달을 열었습니다 ✅');
-          }
-          return;
 
-        case 'create_appt':
-          if (intent.title || intent.task_date || intent.task_time) {
-            onNLCommand?.(intent, text, 'appointment');
+        case 'create_task': {
+          const started = startConversation('task', intent);
+          if (!started) {
+            // 모든 필드 있음 → 바로 모달
+            onNLCommand?.(intent, text, 'task');
+            speak(`"${intent.title || '업무'}" 생성 모달을 열었습니다.`);
             onShowToast?.(`"${text}" 인식됨 — 모달에서 확인하세요`);
-          } else {
-            onCreateAppt?.();
-            onShowToast?.('새 약속 모달을 열었습니다 ✅');
           }
           return;
+        }
+
+        case 'create_appt': {
+          const started = startConversation('appointment', intent);
+          if (!started) {
+            onNLCommand?.(intent, text, 'appointment');
+            speak(`"${intent.title || '약속'}" 생성 모달을 열었습니다.`);
+            onShowToast?.(`"${text}" 인식됨 — 모달에서 확인하세요`);
+          }
+          return;
+        }
 
         case 'move_item': {
-          // "팀 미팅 내일로 이동", "회의 4월10일로 변경" 등
           const newDate = intent.task_date || new Date().toISOString().slice(0, 10);
-          const itemTitle = intent.title;
-          if (itemTitle && newDate) {
-            onMoveItem?.(itemTitle, intent.modalType, newDate);
+          if (intent.title && newDate) {
+            onMoveItem?.(intent.title, intent.modalType, newDate);
+            speak(`"${intent.title}"을 ${toDateLabel(newDate)}로 이동했습니다.`);
           } else {
-            onShowToast?.('이동할 항목 이름이나 날짜를 말해주세요 🗓️');
+            speak('이동할 항목 이름이나 날짜를 말씀해주세요.');
+            onShowToast?.('이동할 항목 이름이나 날짜를 말씀해주세요 🗓️');
           }
           return;
         }
@@ -154,22 +294,27 @@ export default function useGlobalVoice({
           const targetDate = intent.task_date || new Date().toISOString().slice(0, 10);
           onSelectDate?.(targetDate);
           onTabChange?.('calendar');
-          onShowToast?.(`${toDateLabel(intent.task_date)} 일정으로 이동했습니다 📅`);
+          const label = toDateLabel(intent.task_date);
+          speak(`${label} 일정으로 이동했습니다.`);
+          onShowToast?.(`${label} 일정으로 이동했습니다 📅`);
           return;
         }
 
         case 'navigate_today':
           onSelectToday?.();
+          speak('오늘 날짜로 이동했습니다.');
           onShowToast?.('오늘 날짜로 이동했습니다');
           return;
 
         case 'tab_calendar':
           onTabChange?.('calendar');
+          speak('캘린더 뷰로 이동했습니다.');
           onShowToast?.('캘린더 뷰로 이동했습니다');
           return;
 
         case 'tab_kanban':
           onTabChange?.('kanban');
+          speak('칸반 보드로 이동했습니다.');
           onShowToast?.('칸반 보드로 이동했습니다');
           return;
 
@@ -178,34 +323,49 @@ export default function useGlobalVoice({
       }
     }
 
-    // ─── Step 3: Gemini 실패 / unknown → 키워드 기반 폴백 ───────────────────
+    // ─── Step 3: Gemini 실패 폴백 — 날짜/시간 있으면 대화 시작 ──────────
     const parsed = parseNL(text);
 
-    // 날짜 이동 키워드 (폴백)
     if (isMoveIntent(t) && parsed?.task_date && parsed?.title) {
       const isAppt = t.includes('약속') || t.includes('미팅') || t.includes('회의');
       onMoveItem?.(parsed.title, isAppt ? 'appointment' : 'task', parsed.task_date);
+      speak(`"${parsed.title}"을 ${toDateLabel(parsed.task_date)}로 이동했습니다.`);
       return;
     }
 
-    // 날짜/시간 있으면 생성 모달 (title만 있는 경우는 제외)
-    if (parsed && (parsed.task_date || parsed.task_time)) {
+    if (parsed && (parsed.task_date || parsed.task_time || parsed.title)) {
       const isAppt = t.includes('약속') || t.includes('미팅') || t.includes('회의');
-      onNLCommand?.(parsed, text, isAppt ? 'appointment' : 'task');
-      onShowToast?.(`"${text}" 인식됨 — 모달에서 확인하세요`);
+      const type = isAppt ? 'appointment' : 'task';
+      const started = startConversation(type, {
+        title:     parsed.title    || null,
+        task_date: parsed.task_date || null,
+        task_time: parsed.task_time || null,
+      });
+      if (!started) {
+        onNLCommand?.(parsed, text, type);
+        speak(`"${parsed.title || '일정'}" 생성 모달을 열었습니다.`);
+      }
       return;
     }
 
     // 인식 실패
+    speak('죄송해요, 명령을 이해하지 못했어요. 다시 말씀해주세요.');
     onShowToast?.(`"${text}" — 명령을 이해하지 못했습니다 🤔`);
-  }, [onCreateTask, onCreateAppt, onTabChange, onSelectToday, onSelectDate, onNLCommand, onMoveItem, onShowToast]);
+  }, [
+    handleConvAnswer, startConversation, speak,
+    onCreateTask, onCreateAppt, onTabChange, onSelectToday,
+    onSelectDate, onNLCommand, onMoveItem, onShowToast,
+  ]);
 
   // useSpeech 훅 연결 (PTT 모드)
   const { status, startListening, stopListening, supported } = useSpeech({
     onResult: handleResult,
-    onError: (err) => onShowToast?.(`음성 인식 오류: ${err}`),
+    onError:  (err) => {
+      onShowToast?.(`음성 인식 오류: ${err}`);
+      speak('음성 인식 중 오류가 발생했습니다.');
+    },
     mode: 'ptt',
   });
 
-  return { status, startListening, stopListening, supported };
+  return { status, startListening, stopListening, supported, convQuestion };
 }
