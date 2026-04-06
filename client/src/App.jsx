@@ -439,13 +439,14 @@ export default function App() {
         <section style={{ flex: 1, display: 'flex', overflowY: 'auto', overflowX: 'hidden' }}>
           
           <div style={{ 
-            flex: 1, 
-            display: 'flex', 
+            flex: 1,
+            display: 'flex',
             flexDirection: 'column',
             gap: 24,
             width: '100%',
             overflowY: 'auto',
-            padding: isMobile ? '16px' : '32px',
+            // 모바일: 하단 네비게이션 바(약 80px) + safe-area만큼 여백 추가
+            padding: isMobile ? '16px 16px calc(90px + env(safe-area-inset-bottom, 0px)) 16px' : '32px',
           }}>
             {/* Main Tabs (Calendar/Board/Tasks) */}
             <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', minHeight: isDesktop || isTablet ? 650 : 'auto' }}>
