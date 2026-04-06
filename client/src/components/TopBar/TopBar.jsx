@@ -93,8 +93,8 @@ export default function TopBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
         {/* 글로벌 마이크 버튼 - 브라우저가 음성 인식을 지원하는 경우만 표시 */}
-        {/* PTT 마이크 버튼: 누르는 동안 녹음, 뗄 때 처리 */}
-        {voiceSupported && (
+        {/* PTT 마이크 버튼: 데스크탑에서만 표시 (모바일은 하단 네비게이션 바에 위치) */}
+        {voiceSupported && !isMobile && (
           <button
             onMouseDown={(e) => { e.preventDefault(); onVoiceStart?.(); }}
             onMouseUp={() => onVoiceStop?.()}

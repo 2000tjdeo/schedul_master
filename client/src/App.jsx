@@ -491,7 +491,16 @@ export default function App() {
 
         </section>
 
-        {isMobile && <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />}
+        {isMobile && (
+          <BottomNav
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            voiceStatus={voiceStatus}
+            onVoiceStart={startListening}
+            onVoiceStop={stopListening}
+            voiceSupported={voiceSupported}
+          />
+        )}
       </main>
 
       {/* Floating Action Elements */}
