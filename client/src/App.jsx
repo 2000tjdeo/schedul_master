@@ -192,15 +192,19 @@ export default function App() {
 
   // 음성으로 인식된 자연어 텍스트 (UnifiedCreateModal에 전달용)
   const [voiceNLText, setVoiceNLText] = useState('');
+  // Gemini/대화에서 이미 파싱된 데이터 → 모달에 직접 주입 (NLStrip 재파싱 없이)
+  const [voiceParsedData, setVoiceParsedData] = useState(null);
 
-  // ── 글로벌 음성 명령: 자연어 텍스트 → 모달 열기 + NL 텍스트 전달 ─────────────
+  // ── 글로벌 음성 명령: 자연어 텍스트 → 모달 열기 + 파싱 데이터 직접 주입 ────────
   // modalType: 'task' | 'appointment' | null (Gemini가 판단, null이면 키워드로 추정)
   const handleNLVoiceCommand = useCallback((parsed, rawText, modalType = null) => {
     const isAppt = modalType === 'appointment' ||
-      (!modalType && (rawText.includes('약속') || rawText.includes('미팅') || rawText.includes('회의')));
+      (!modalType && rawText && (rawText.includes('약속') || rawText.includes('미팅') || rawText.includes('회의')));
     setCreateType(isAppt ? 'appointment' : 'task');
     setCreateDate(parsed.task_date ?? parsed.date ?? selectedDate);
-    setVoiceNLText(rawText); // NLStrip에 텍스트 자동 주입 → Gemini로 폼 자동 채움
+    // 이미 파싱된 데이터를 직접 폼에 주입 (NLStrip 재파싱 불필요 → 데이터 손실 방지)
+    setVoiceParsedData(parsed);
+    setVoiceNLText(''); // NLStrip 자동 재파싱 비활성화
     setShowCreate(true);
   }, [selectedDate]);
 
@@ -525,7 +529,7 @@ export default function App() {
 
       {selectedAppt && <AppointmentModal appt={selectedAppt} currentUser={currentUser} onClose={() => setSelectedAppt(null)} onUpdate={async (id, data) => { const result = await updateAppointment(id, data); if (!result?.error) setSelectedAppt(result); return result; }} onDelete={deleteAppointment} />}
       {selectedTask && <TaskModal task={selectedTask} users={users} currentUser={currentUser} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onAddComment={handleAddComment} getComments={getComments} />}
-      {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} initialNLText={voiceNLText} users={users} currentUser={currentUser} onClose={() => { setShowCreate(false); setVoiceNLText(''); }} onCreate={async (data) => { await handleCreateTask(data); fetchTasks(); }} onCreateAppt={async (data) => { await addAppointment(data); fetchAppointments(); }} />}
+      {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} initialNLText={voiceNLText} initialParsedData={voiceParsedData} users={users} currentUser={currentUser} onClose={() => { setShowCreate(false); setVoiceNLText(''); setVoiceParsedData(null); }} onCreate={async (data) => { await handleCreateTask(data); fetchTasks(); }} onCreateAppt={async (data) => { await addAppointment(data); fetchAppointments(); }} />}
       {showAdmin && <AdminPage currentUser={currentUser} onClose={() => setShowAdmin(false)} />}
       <Toast toast={toast} />
       <style>{`* { box-sizing: border-box; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; display: inline-block; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>

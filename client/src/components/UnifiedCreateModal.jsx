@@ -391,7 +391,7 @@ function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, e
 }
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
-export default function UnifiedCreateModal({ defaultType = 'task', defaultDate = null, defaultStatus = 'todo', initialNLText = '', users = [], currentUser, onClose, onCreate, onCreateAppt }) {
+export default function UnifiedCreateModal({ defaultType = 'task', defaultDate = null, defaultStatus = 'todo', initialNLText = '', initialParsedData = null, users = [], currentUser, onClose, onCreate, onCreateAppt }) {
   const initDate = defaultDate || todayStr();
   const [type, setType] = useState(defaultType);
   const [loading, setLoading] = useState(false);
@@ -412,7 +412,15 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
         if ((p.task_time !== undefined || p.duration !== undefined) && newStartTime) {
           newEndTime = addMinutes(newStartTime, newDuration);
         }
-        return { ...a, ...p, start_time: newStartTime, end_time: newEndTime };
+        // 약속 필드만 추출 (task_date→date 변환, 불필요한 필드 제외)
+        const apptFields = {};
+        if (p.title    !== undefined)     apptFields.title    = p.title;
+        if (p.location !== undefined)     apptFields.location = p.location;
+        if (p.memo     !== undefined)     apptFields.memo     = p.memo;
+        if (p.color    !== undefined)     apptFields.color    = p.color;
+        if (p.task_date !== undefined)    apptFields.date     = p.task_date; // task_date → date
+        if (p.date     !== undefined)     apptFields.date     = p.date;
+        return { ...a, ...apptFields, start_time: newStartTime, end_time: newEndTime };
       });
     } else {
       setTask(t => {
@@ -424,10 +432,20 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
           newAllDay = false;
           newEndTime = addMinutes(newTime, newDuration);
         }
-        return { ...t, ...p, end_time: newEndTime, allDay: newAllDay };
+        // 불필요한 Gemini 응답 필드(action, modalType 등) 제외
+        const { action, modalType, ...pClean } = p;
+        return { ...t, ...pClean, end_time: newEndTime, allDay: newAllDay };
       });
     }
   }, [isAppt]);
+
+  // ── 음성/AI로 이미 파싱된 데이터 직접 주입 (NLStrip 재파싱 없이) ─────────────
+  // initialParsedData: { title, task_date, task_time, ... } — 마운트 시 한 번만 적용
+  useEffect(() => {
+    if (!initialParsedData) return;
+    handleNLParsed(initialParsedData);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 의도적으로 마운트 시 1회만 실행
 
   const handleSubmit = async () => {
     setLoading(true);

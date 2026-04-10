@@ -90,14 +90,14 @@ export default function KanbanCard({ task, onClick, onMoveTask }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {task.assignee_name ? (
-              <div style={{
-                width: 18, height: 18, borderRadius: '50%',
-                background: getAvatarColor(task.assignee_name),
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontSize: 9, fontWeight: 700, flexShrink: 0,
-              }} title={task.assignee_name}>
-                {task.assignee_name.slice(0, 1)}
-              </div>
+            <div style={{
+              width: 18, height: 18, borderRadius: '50%',
+              background: getAvatarColor(task.assignee_name),
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 9, fontWeight: 700, flexShrink: 0,
+            }} title={task.assignee_name}>
+              {task.assignee_name.slice(0, 1)}
+            </div>
           ) : (
             <div style={{
               width: 18, height: 18, borderRadius: '50%', background: '#f3f4f6',
