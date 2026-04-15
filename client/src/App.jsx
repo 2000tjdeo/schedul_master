@@ -19,6 +19,7 @@ import AdminPage from './pages/AdminPage.jsx';
 import CalendarPanel   from './components/Calendar/CalendarPanel.jsx';
 import MiniCalendar    from './components/Calendar/MiniCalendar.jsx';
 import BentoSchedule   from './components/Calendar/BentoSchedule.jsx';
+import TimelineCalendar from './components/Calendar/TimelineCalendar.jsx';
 
 // Kanban / Tasks
 import KanbanBoard     from './components/Kanban/KanbanBoard.jsx';
@@ -129,7 +130,7 @@ export default function App() {
   const [createStatus,   setCreateStatus]   = useState('todo');
   const [showAdmin,      setShowAdmin]      = useState(false);
   const [searchQuery,    setSearchQuery]    = useState('');
-  const [activeTab,      setActiveTab]      = useState('calendar'); // calendar, kanban, tasks, archived
+  const [activeTab,      setActiveTab]      = useState('calendar'); // calendar, kanban, tasks, archived, timeline
   const [showArchived,   setShowArchived]   = useState(false);
 
   const {
@@ -479,6 +480,18 @@ export default function App() {
                  )
               )}
               {activeTab === 'kanban' && (isMobile ? <MobileKanbanBoard {...boardProps} /> : <KanbanBoard {...boardProps} />)}
+              {activeTab === 'timeline' && (
+                <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <TimelineCalendar 
+                    projectTitle="Project Timeline"
+                    projectTasks={activeTasks}
+                    projectAppointments={appointments}
+                    onDateSelect={setSelectedDate}
+                    onTaskClick={setSelectedTask}
+                    onApptClick={setSelectedAppt}
+                  />
+                </div>
+              )}
               {activeTab === 'tasks' && <TaskListView tasks={filteredTasks} onTaskClick={setSelectedTask} />}
               {activeTab === 'archived' && (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>

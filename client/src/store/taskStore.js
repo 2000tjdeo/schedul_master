@@ -59,8 +59,14 @@ const useTaskStore = create((set, get) => ({
   },
 
   addAppointment: async (apptData) => {
+    // 유효한 필드만 추출 (스키마에 없는 필드 제외)
+    const validFields = ['title', 'date', 'start_time', 'end_time', 'color', 'created_by'];
+    const payload = {};
+    for (const key of validFields) {
+      if (apptData[key] !== undefined) payload[key] = apptData[key];
+    }
     try {
-      const { data, error } = await supabase.from('sm_appointments').insert([apptData]).select().single();
+      const { data, error } = await supabase.from('sm_appointments').insert([payload]).select().single();
       if (error) throw error;
       set(state => ({ appointments: [...state.appointments, data].sort((a,b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)) }));
       get().showToast('약속이 추가되었습니다.', 'success');
@@ -72,8 +78,14 @@ const useTaskStore = create((set, get) => ({
   },
 
   updateAppointment: async (id, apptData) => {
+    // 유효한 필드만 추출
+    const validFields = ['title', 'date', 'start_time', 'end_time', 'color'];
+    const payload = {};
+    for (const key of validFields) {
+      if (apptData[key] !== undefined) payload[key] = apptData[key];
+    }
     try {
-      const { data, error } = await supabase.from('sm_appointments').update(apptData).eq('id', id).select().single();
+      const { data, error } = await supabase.from('sm_appointments').update(payload).eq('id', id).select().single();
       if (error) throw error;
       set(state => ({ appointments: state.appointments.map(a => a.id === id ? data : a) }));
       get().showToast('약속이 수정되었습니다.', 'success');

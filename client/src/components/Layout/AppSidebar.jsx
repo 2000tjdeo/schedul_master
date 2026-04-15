@@ -5,7 +5,7 @@ const NAV_LINKS = [
   { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
   { id: 'kanban',   label: 'Board',    icon: 'dashboard' },
   { id: 'tasks',    label: 'Tasks',    icon: 'assignment' },
-  { id: 'archived', label: 'Archive',  icon: 'archive' },
+  { id: 'timeline', label: 'Timeline', icon: 'timeline' },
 ];
 
 export default function AppSidebar({

@@ -2,11 +2,11 @@ import React from 'react';
 import { ACCENT } from '../../utils/colorMap.js';
 
 const TABS = [
-  { id: 'calendar', label: 'Home',  icon: 'home' },
-  { id: 'kanban',   label: 'Board', icon: 'dashboard' },
+  { id: 'calendar', label: 'Home',    icon: 'home' },
+  { id: 'kanban',   label: 'Board',  icon: 'dashboard' },
   // 중앙 마이크 버튼 자리 (빈 슬롯)
-  { id: 'tasks',    label: 'Tasks', icon: 'assignment' },
-  { id: 'archived', label: 'Done',  icon: 'check_circle' },
+  { id: 'tasks',    label: 'Tasks',  icon: 'assignment' },
+  { id: 'timeline', label: 'Timeline', icon: 'timeline' },
 ];
 
 /**
@@ -26,7 +26,7 @@ export default function BottomNav({
   const isProcessing = voiceStatus === 'processing';
 
   const LEFT_TABS  = TABS.slice(0, 2);   // Home, Board
-  const RIGHT_TABS = TABS.slice(2);      // Tasks, Done
+  const RIGHT_TABS = TABS.slice(2);      // Tasks, Timeline
 
   return (
     <nav style={{
