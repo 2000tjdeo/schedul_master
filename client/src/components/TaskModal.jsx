@@ -204,7 +204,7 @@ function CommentsSection({ taskId, currentUser, getComments, onAddComment }) {
 // ── Main modal — 항상 편집 모드 ───────────────────────────────────────────────
 export default function TaskModal({
   task, users, currentUser,
-  onClose, onUpdate, onDelete, onAddComment, getComments,
+  onClose, onUpdate, onDelete, onAddComment, getComments, projects = [],
 }) {
   const initEnd = task.task_time && task.duration
     ? minToTime(timeToMin(task.task_time) + (task.duration || 60))
@@ -223,6 +223,7 @@ export default function TaskModal({
     category:    task.category  || '업무',
     assignee_id: task.assignee_id || '',
     location:    task.location  || '',
+    project_id:  task.project_id || '',
   });
   const [saving,         setSaving]         = useState(false);
   const [error,          setError]          = useState('');
@@ -282,12 +283,17 @@ export default function TaskModal({
     if (!form.title.trim()) { setError('제목을 입력해주세요.'); return; }
     setError('');
     setSaving(true);
-    const result = await onUpdate(task.id, {
+    const payload = {
       ...form,
       task_time:   form.task_time || null,
       assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
       duration:    form.task_time ? (form.duration ? Number(form.duration) : 60) : null,
+    };
+    // 빈 문자열 필터링
+    Object.keys(payload).forEach(k => {
+      if (payload[k] === '' || payload[k] === null) delete payload[k];
     });
+    const result = await onUpdate(task.id, payload);
     setSaving(false);
     if (result?.error) setError(result.error);
     else onClose();
@@ -398,6 +404,22 @@ export default function TaskModal({
                   );
                 })}
               </div>
+            </div>
+            <div>
+              <FieldLabel>프로젝트</FieldLabel>
+              <select
+                value={form.project_id}
+                onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
+                style={{
+                  width: '100%', padding: '7px 10px',
+                  border: '1.5px solid #e8e8e8', borderRadius: 8,
+                  fontSize: 13, outline: 'none', background: '#fafafa',
+                  cursor: 'pointer', fontFamily: 'inherit', color: '#333',
+                }}
+              >
+                <option value="">없음</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </div>
             <div>
               <FieldLabel>담당자</FieldLabel>

@@ -2,8 +2,10 @@ node_modules/
 .DS_Store
 dist/
 .env
+.env.local
 *.log
 .vite/
 .playwright-mcp/
 .claude/
 .vercel
+opencode.json

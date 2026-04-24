@@ -6,15 +6,17 @@ async function migrateTable(localEndpoint, remoteName, cleanFn) {
     const resLocal = await fetch(`http://localhost:3001/api/${localEndpoint}`);
     if (!resLocal.ok) throw new Error(`Failed: ${resLocal.statusText}`);
     let rows = await resLocal.json();
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      console.log(`⏭ [${localEndpoint}] -> [${remoteName}]: No data`);
+      return;
+    }
     
-    // For tasks, the API returns an array directly
-    // Let's filter out known relational fields that break inserts
     const cleanRows = rows.map(r => {
       let clean = { ...r };
       Object.keys(clean).forEach(k => {
         if (clean[k] === '') clean[k] = null;
       });
+      delete clean.id;
       if (cleanFn) clean = cleanFn(clean);
       return clean;
     });
@@ -30,8 +32,8 @@ async function migrateTable(localEndpoint, remoteName, cleanFn) {
       body: JSON.stringify(cleanRows)
     });
 
-    if (res.ok) console.log(`✅ [${localEndpoint}] -> [${remoteName}]: MIGRATE SUCCESS (${cleanRows.length} rows)`);
-    else console.error(`❌ [${localEndpoint}] -> [${remoteName}] Failed:`, await res.text());
+    if (res.ok) console.log(`✅ [${localEndpoint}] -> [${remoteName}]: SUCCESS (${cleanRows.length} rows)`);
+    else console.error(`❌ [${localEndpoint}] Failed:`, await res.text());
   } catch (err) {
     console.error(`❌ [${localEndpoint}] error:`, err);
   }
@@ -43,17 +45,12 @@ async function run() {
     delete row.creator_name;
     delete row.created_by_name;
     delete row.comment_count;
-    
-    // Ignore foreign keys to easily migrate test data
-    row.assignee_id = null;
-    row.created_by  = null;
     return row;
   });
   
   await migrateTable('appointments', 'sm_appointments', (row) => {
     delete row.created_by_name;
     delete row.creator_name;
-    row.created_by = null;
     return row;
   });
 }

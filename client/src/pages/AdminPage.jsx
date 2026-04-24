@@ -62,10 +62,14 @@ export default function AdminPage({ currentUser, onClose }) {
   const [members,     setMembers]     = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [chips,       setChips]       = useState([]);
+  const [projects,     setProjects]     = useState([]);
+  const [editingProject, setEditingProject] = useState(null);
+  const [editProjectName, setEditProjectName] = useState('');
   const [loading,     setLoading]     = useState(false);
   const [inviteModal, setInviteModal] = useState(false);
   const [newInvite,   setNewInvite]   = useState(null);
   const [newChip,     setNewChip]     = useState({ label: '', type: 'title' });
+  const [newProject, setNewProject] = useState({ name: '', color: '#6366f1' });
   const [pinModal,    setPinModal]    = useState(false);
   const [pinInput,    setPinInput]    = useState('');
   const [pinMsg,      setPinMsg]      = useState('');
@@ -88,10 +92,28 @@ export default function AdminPage({ currentUser, onClose }) {
     if (data) setChips(data);
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const { data } = await supabase.from('sm_tasks').select('project_id');
+      const tasksWithProject = (data || []).filter(t => t.project_id);
+      const projectIds = [...new Set(tasksWithProject.map(t => t.project_id))];
+      const projectList = projectIds.map(id => ({
+        id,
+        name: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+      }));
+      setProjects(projectList);
+      console.log('Fetched projects:', projectList.length);
+    } catch (err) {
+      console.error('fetchProjects error:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchMembers();
     fetchInvitations();
     fetchChips();
+    fetchProjects();
   }, []);
 
   // 역할 변경
@@ -131,6 +153,72 @@ export default function AdminPage({ currentUser, onClose }) {
   const handleDeleteInvite = async (id) => {
     await supabase.from('sm_invitations').delete().eq('id', id);
     fetchInvitations();
+  };
+
+  // 프로젝트 추가
+  const handleAddProject = async () => {
+    if (!newProject.name.trim()) return;
+    setLoading(true);
+    try {
+      const projectId = newProject.name.trim().toLowerCase().replace(/\s+/g, '_');
+      console.log('Creating project:', projectId, newProject.name);
+      
+      const payload = {
+        title: `[${newProject.name}] 초기화`,
+        project_id: projectId,
+        status: 'todo',
+        category: '업무',
+        task_date: new Date().toISOString().slice(0, 10),
+      };
+      if (currentUser?.id) payload.created_by = currentUser.id;
+      
+      const { data, error } = await supabase.from('sm_tasks').insert([payload]).select();
+      
+      if (error) {
+        get().showToast('프로젝트 생성 실패: ' + error.message, 'error');
+      } else {
+        get().showToast('프로젝트 "' + newProject.name + '" 생성 완료', 'success');
+        setNewProject({ name: '', color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0') });
+        await fetchProjects();
+      }
+    } catch (err) {
+      console.error('handleAddProject error:', err);
+      get().showToast('프로젝트 생성 실패', 'error');
+    }
+    setLoading(false);
+  };
+
+  // 프로젝트 삭제 (관련 업무도 함께 삭제)
+  const handleDeleteProject = async (projectId) => {
+    if (!confirm(`프로젝트 "${projectId}"와 관련된 모든 업무를 삭제하시겠습니까?`)) return;
+    await supabase.from('sm_tasks').delete().eq('project_id', projectId);
+    fetchProjects();
+  };
+
+  // 프로젝트 수정 시작
+  const handleEditProject = (p) => {
+    setEditingProject(p.id);
+    setEditProjectName(p.name);
+  };
+
+  // 프로젝트 수정 저장
+  const handleSaveProject = async () => {
+    if (!editProjectName.trim() || !editingProject) return;
+    const oldId = editingProject;
+    const newId = editProjectName.trim().toLowerCase().replace(/\s+/g, '_');
+    
+    // project_id 일괄 업데이트
+    const { data: tasks } = await supabase.from('sm_tasks').select('id').eq('project_id', oldId);
+    if (tasks && tasks.length > 0) {
+      for (const task of tasks) {
+        await supabase.from('sm_tasks').update({ project_id: newId }).eq('id', task.id);
+      }
+    }
+    
+    setEditingProject(null);
+    setEditProjectName('');
+    fetchProjects();
+    get().showToast('프로젝트 이름이 변경되었습니다', 'success');
   };
 
   // 칩 추가
@@ -193,6 +281,7 @@ export default function AdminPage({ currentUser, onClose }) {
             { id: 'members',     label: '구성원' },
             { id: 'invite',      label: '초대' },
             { id: 'chips',       label: '칩 관리' },
+            { id: 'projects',     label: '프로젝트' },
             { id: 'security',    label: '보안' },
           ].map(t => (
             <Tab key={t.id} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />
@@ -396,6 +485,106 @@ export default function AdminPage({ currentUser, onClose }) {
                     )}
                   </div>
                 ))}
+              </div>
+            </>
+          )}
+
+          {/* ── 프로젝트 탭 ────────────────────────────────────────────── */}
+          {tab === 'projects' && (
+            <>
+              <SectionHeader title="프로젝트 관리" />
+
+              {/* 프로젝트 추가 폼 */}
+              <div style={{
+                background: '#fff', borderRadius: 14, padding: '14px 16px',
+                marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center',
+              }}>
+                <input
+                  type="text"
+                  placeholder="프로젝트 이름"
+                  value={newProject.name}
+                  onChange={e => setNewProject(p => ({ ...p, name: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && handleAddProject()}
+                  style={{
+                    flex: 1, border: '1.5px solid #e5e5ea', borderRadius: 8,
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+                <input
+                  type="color"
+                  value={newProject.color}
+                  onChange={e => setNewProject(p => ({ ...p, color: e.target.value }))}
+                  style={{ width: 40, height: 36, border: '1.5px solid #e5e5ea', borderRadius: 8, cursor: 'pointer' }}
+                />
+                <button onClick={handleAddProject} style={{
+                  padding: '8px 14px', borderRadius: 8, border: 'none',
+                  background: ACCENT, color: '#fff', fontSize: 13, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>추가</button>
+              </div>
+
+              {/* 프로젝트 목록 */}
+              <div style={{ background: '#fff', borderRadius: 14, overflow: 'hidden' }}>
+                {projects.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', color: '#888' }}>
+                    프로젝트가 없습니다
+                  </div>
+                ) : (
+                  projects.map((p, i) => (
+                    <div key={i} style={{
+                      padding: '12px 16px', borderBottom: '1px solid #f0f0f0',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      gap: 8,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: p.color }} />
+                        {editingProject === p.id ? (
+                          <input
+                            value={editProjectName}
+                            onChange={e => setEditProjectName(e.target.value)}
+                            onKeyDown={k => k.key === 'Enter' && handleSaveProject()}
+                            style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 14 }}
+                            autoFocus
+                          />
+                        ) : (
+                          <>
+                            <span style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</span>
+                            <span style={{ fontSize: 12, color: '#888' }}>({p.id})</span>
+                          </>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {editingProject === p.id ? (
+                          <>
+                            <button onClick={handleSaveProject} style={{
+                              padding: '6px 10px', borderRadius: 6, border: 'none',
+                              background: '#d1fae5', color: '#065f46', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer',
+                            }}>저장</button>
+                            <button onClick={() => setEditingProject(null)} style={{
+                              padding: '6px 10px', borderRadius: 6, border: 'none',
+                              background: '#f3f4f6', color: '#374151', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer',
+                            }}>취소</button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => handleEditProject(p)} style={{
+                              padding: '6px 10px', borderRadius: 6, border: 'none',
+                              background: '#e0e7ff', color: '#3730a3', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer',
+                            }}>수정</button>
+                            <button onClick={() => handleDeleteProject(p.id)} style={{
+                              padding: '6px 10px', borderRadius: 6, border: 'none',
+                              background: '#fee2e2', color: '#dc2626', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer',
+                            }}>삭제</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </>
           )}

@@ -391,13 +391,16 @@ function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, e
 }
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
-export default function UnifiedCreateModal({ defaultType = 'task', defaultDate = null, defaultStatus = 'todo', initialNLText = '', initialParsedData = null, users = [], currentUser, onClose, onCreate, onCreateAppt }) {
+export default function UnifiedCreateModal({ defaultType = 'task', defaultDate = null, defaultStatus = 'todo', defaultProjectId = null, initialNLText = '', initialParsedData = null, users = [], currentUser, projects = [], onClose, onCreate, onCreateAppt }) {
   const initDate = defaultDate || todayStr();
   const [type, setType] = useState(defaultType);
   const [loading, setLoading] = useState(false);
   const [aiDescLoading, setAiDescLoading] = useState(false);
-  const [appt, setAppt] = useState({ title: '', date: initDate, start_time: roundedTime(0), end_time: roundedTime(60), allDay: false, color: ACCENT, location: '', attendees: '', memo: '' });
-  const [task, setTask] = useState({ title: '', task_date: initDate, due_date: addDays(initDate, 1), task_time: '09:00', end_time: '18:00', allDay: true, status: defaultStatus, priority: 'medium', category: '업무', description: '' });
+  const [appt, setAppt] = useState({ title: '', date: initDate, start_time: roundedTime(0), end_time: roundedTime(60), allDay: false, color: ACCENT, location: '', attendees: '', memo: '', project_id: defaultProjectId });
+  const [task, setTask] = useState({ title: '', task_date: initDate, due_date: addDays(initDate, 1), task_time: '09:00', end_time: '18:00', allDay: true, status: defaultStatus, priority: 'medium', category: '업무', description: '', project_id: defaultProjectId });
+
+  // 프로젝트 목록 (props로 전달받거나 기본값 사용)
+  const projectList = projects || [];
 
   const isAppt = type === 'appointment';
   const accentColor = isAppt ? appt.color : ACCENT;
@@ -452,19 +455,27 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
     try {
       if (isAppt) {
         const { allDay, ...apptRest } = appt;
-        const payload = { ...apptRest, created_by: currentUser?.id };
+        const payload = { ...apptRest };
+        if (currentUser?.id) payload.created_by = currentUser.id;
         if (allDay) {
           payload.start_time = null;
           payload.end_time = null;
         }
+        Object.keys(payload).forEach(k => {
+          if (payload[k] === '' || payload[k] === null) delete payload[k];
+        });
         await onCreateAppt(payload);
       } else {
         const { allDay, end_time, ...rest } = task;
-        const payload = { ...rest, created_by: currentUser?.id };
+        const payload = { ...rest };
+        if (currentUser?.id) payload.created_by = currentUser.id;
         if (allDay) {
           payload.task_time = null;
           payload.duration = null;
         }
+        Object.keys(payload).forEach(k => {
+          if (payload[k] === '' || payload[k] === null) delete payload[k];
+        });
         await onCreate(payload);
       }
     } catch(e) {}
@@ -560,6 +571,30 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
             }} 
             onEndTime={v => isAppt ? setAppt(a=>({...a, end_time:v})) : setTask(t=>({...t, end_time:v}))} 
           />
+          {/* 프로젝트 선택 - 약속도 가능 */}
+          {projectList.length > 0 && (
+            <Card>
+              <CardRow label="Project" noBorder>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {isAppt ? (
+                    <>
+                      <Pill label="없음" active={!appt.project_id} onClick={() => setAppt(a => ({...a, project_id: ''}))} accentColor="#64748b" />
+                      {projectList.map(p => (
+                        <Pill key={p.id} label={p.name || p.id} active={appt.project_id === p.id} onClick={() => setAppt(a => ({...a, project_id: p.id, color: p.color || a.color}))} accentColor={p.color || ACCENT} />
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <Pill label="없음" active={!task.project_id} onClick={() => setTask(t => ({...t, project_id: ''}))} accentColor="#64748b" />
+                      {projectList.map(p => (
+                        <Pill key={p.id} label={p.name || p.id} active={task.project_id === p.id} onClick={() => setTask(t => ({...t, project_id: p.id}))} accentColor={p.color || ACCENT} />
+                      ))}
+                    </>
+                  )}
+                </div>
+              </CardRow>
+            </Card>
+          )}
           {!isAppt && (
              <Card>
                <CardRow label="Priority" noBorder>

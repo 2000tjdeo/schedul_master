@@ -24,6 +24,9 @@ export default function AppSidebar({
   onLogout,
   onAdmin,
   isMobile,
+  projects = [],
+  selectedProjectId,
+  onSelectProject,
 }) {
   if (!open) return null;
 
@@ -109,6 +112,39 @@ export default function AppSidebar({
           })}
 
           <div style={{ height: 1, background: '#f1f1f1', margin: '16px 0' }} />
+
+          {/* Projects */}
+          <div style={{ padding: '0 12px 6px', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projects</div>
+          {/* 전체 보기 */}
+          <button
+            onClick={() => onSelectProject?.(null)}
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
+              borderRadius: 8, border: 'none', background: !selectedProjectId ? 'rgba(0,0,0,0.04)' : 'transparent',
+              cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#94a3b8' }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: !selectedProjectId ? '#b7131a' : '#52525b' }}>전체 보기</span>
+          </button>
+          {/* 프로젝트 목록 */}
+          {(projects || []).map(proj => {
+            const selected = selectedProjectId === proj.id;
+            return (
+              <button
+                key={proj.id}
+                onClick={() => onSelectProject?.(proj.id)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
+                  borderRadius: 8, border: 'none', background: selected ? 'rgba(0,0,0,0.04)' : 'transparent',
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: proj.color || '#6366f1' }} />
+                <span style={{ fontSize: 13, fontWeight: selected ? 700 : 500, color: selected ? '#b7131a' : '#52525b' }}>{proj.title || proj.name}</span>
+              </button>
+            );
+          })}
 
           {/* Filters (Simplified for Sidebar) */}
           <div style={{ padding: '0 12px 6px', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stats</div>

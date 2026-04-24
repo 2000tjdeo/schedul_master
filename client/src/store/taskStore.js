@@ -8,11 +8,30 @@ const useTaskStore = create((set, get) => ({
   selectedDate: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
   toast: null,
   loading: false,
+  syncInterval: null,
 
   // ── Toast ───────────────────────────────────────────────────────────────────
   showToast: (message, type = 'info') => {
     set({ toast: { message, type, id: Date.now() } });
     setTimeout(() => set({ toast: null }), 2400);
+  },
+
+  // ── Realtime Sync ────────────────────────────────────────────────────────
+  startRealtimeSync: () => {
+    // Supabase Realtime subscription으로 실시간 동기화 (폴링 대신)
+    const channel = supabase.channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+        if (payload.table === 'sm_tasks') get().fetchTasks();
+        if (payload.table === 'sm_appointments') get().fetchAppointments();
+      })
+      .subscribe();
+    set({ syncInterval: channel });
+  },
+  
+  stopRealtimeSync: () => {
+    const { syncInterval } = get();
+    if (syncInterval) supabase.removeChannel(syncInterval);
+    set({ syncInterval: null });
   },
 
   // ── Data fetching ────────────────────────────────────────────────────────────
@@ -59,11 +78,10 @@ const useTaskStore = create((set, get) => ({
   },
 
   addAppointment: async (apptData) => {
-    // 유효한 필드만 추출 (스키마에 없는 필드 제외)
-    const validFields = ['title', 'date', 'start_time', 'end_time', 'color', 'created_by'];
+    const validFields = ['title', 'date', 'start_time', 'end_time', 'color', 'created_by', 'project_id'];
     const payload = {};
     for (const key of validFields) {
-      if (apptData[key] !== undefined) payload[key] = apptData[key];
+      if (apptData[key] !== undefined && apptData[key] !== '') payload[key] = apptData[key];
     }
     try {
       const { data, error } = await supabase.from('sm_appointments').insert([payload]).select().single();
@@ -78,11 +96,10 @@ const useTaskStore = create((set, get) => ({
   },
 
   updateAppointment: async (id, apptData) => {
-    // 유효한 필드만 추출
-    const validFields = ['title', 'date', 'start_time', 'end_time', 'color'];
+    const validFields = ['title', 'date', 'start_time', 'end_time', 'color', 'created_by'];
     const payload = {};
     for (const key of validFields) {
-      if (apptData[key] !== undefined) payload[key] = apptData[key];
+      if (apptData[key] !== undefined && apptData[key] !== '') payload[key] = apptData[key];
     }
     try {
       const { data, error } = await supabase.from('sm_appointments').update(payload).eq('id', id).select().single();
@@ -112,7 +129,11 @@ const useTaskStore = create((set, get) => ({
   // ── Task CRUD ────────────────────────────────────────────────────────────────
   addTask: async (taskData) => {
     try {
-      const { data, error } = await supabase.from('sm_tasks').insert([taskData]).select().single();
+      const clean = { ...taskData };
+      Object.keys(clean).forEach(k => {
+        if (clean[k] === '' || clean[k] === null) delete clean[k];
+      });
+      const { data, error } = await supabase.from('sm_tasks').insert([clean]).select().single();
       if (error) throw error;
       data.comment_count = 0;
       set(state => ({ tasks: [data, ...state.tasks] }));
@@ -127,7 +148,11 @@ const useTaskStore = create((set, get) => ({
 
   updateTask: async (id, taskData) => {
     try {
-      const { data, error } = await supabase.from('sm_tasks').update(taskData).eq('id', id).select().single();
+      const clean = { ...taskData };
+      Object.keys(clean).forEach(k => {
+        if (clean[k] === '' || clean[k] === null) delete clean[k];
+      });
+      const { data, error } = await supabase.from('sm_tasks').update(clean).eq('id', id).select().single();
       if (error) throw error;
       
       set(state => ({

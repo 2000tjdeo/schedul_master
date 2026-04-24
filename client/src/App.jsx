@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import useTaskStore from './store/taskStore.js';
 import useViewMode from './hooks/useViewMode.js';
 import useGlobalVoice from './hooks/useGlobalVoice.js';
@@ -132,6 +132,7 @@ export default function App() {
   const [searchQuery,    setSearchQuery]    = useState('');
   const [activeTab,      setActiveTab]      = useState('calendar'); // calendar, kanban, tasks, archived, timeline
   const [showArchived,   setShowArchived]   = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState(null); // 프로젝트 컨텍스트 모드
 
   const {
     tasks, users, appointments, loading, toast, selectedDate,
@@ -139,7 +140,18 @@ export default function App() {
     addTask, updateTask, deleteTask, moveTask,
     addAppointment, updateAppointment, deleteAppointment,
     getComments, addComment, setSelectedDate,
+    startRealtimeSync, stopRealtimeSync,
   } = useTaskStore();
+
+  // 프로젝트 목록 (task.project_id에서 고유값 추출)
+  const projects = useMemo(() => {
+    const projectIds = [...new Set(tasks.filter(t => t.project_id).map(t => t.project_id))];
+    return projectIds.map(id => ({
+      id,
+      name: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+    }));
+  }, [tasks]);
 
   const { isMobile, isTablet, isDesktop } = useViewMode();
 
@@ -166,7 +178,9 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       fetchTasks(); fetchUsers(); fetchAppointments();
+      startRealtimeSync();
     }
+    return () => stopRealtimeSync();
   }, [currentUser, fetchTasks, fetchUsers, fetchAppointments]);
 
   const handleCreateTask = useCallback(async (data) => addTask({ ...data, created_by: currentUser?.id }), [addTask, currentUser]);
@@ -272,8 +286,22 @@ export default function App() {
       const q = searchQuery.toLowerCase();
       if (!task.title.toLowerCase().includes(q) && !(task.description || '').toLowerCase().includes(q)) return false;
     }
+    // 프로젝트 컨텍스트 필터
+    if (selectedProjectId && task.project_id !== selectedProjectId) return false;
     return true;
   });
+
+  // 선택된 프로젝트 정보
+  const selectedProject = projects?.find(p => p.id === selectedProjectId) || null;
+
+  // 프로젝트별 진행률 계산
+  const projectStats = useMemo(() => {
+    if (!selectedProject) return null;
+    const projectTasks = allTasks.filter(t => t.project_id === selectedProjectId && t.status !== 'archived');
+    if (projectTasks.length === 0) return null;
+    const done = projectTasks.filter(t => t.status === 'done').length;
+    return { total: projectTasks.length, done, progress: Math.round((done / projectTasks.length) * 100) };
+  }, [allTasks, selectedProjectId]);
 
   const stats = { 
     total: activeTasks.length, 
@@ -319,7 +347,7 @@ export default function App() {
   }
 
   const calProps = { tasks: filteredTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop };
-  const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask };
+  const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask, projects: projects };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: STITCH.bg, fontFamily: 'Inter, sans-serif' }}>
@@ -337,6 +365,9 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         onAdmin={() => setShowAdmin(true)}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={setSelectedProjectId}
       />
 
       {/* ── Main Area ── */}
@@ -364,6 +395,38 @@ export default function App() {
           onVoiceStop={stopListening}
           voiceSupported={voiceSupported}
         />
+
+        {/* ── 프로젝트 컨텍스트 바 ── */}
+        {selectedProject && projectStats && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '12px 24px', background: '#fff',
+            borderBottom: `1px solid ${selectedProject.color}22`,
+          }}>
+            <button
+              onClick={() => setSelectedProjectId(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '6px 12px', borderRadius: 8,
+                border: 'none', background: '#f1f5f9', cursor: 'pointer',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>뒤로</span>
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', background: selectedProject.color }} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{selectedProject.name}</span>
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#e2e8f0', overflow: 'hidden' }}>
+                <div style={{ width: `${projectStats.progress}%`, height: '100%', background: selectedProject.color, borderRadius: 3, transition: 'width 0.3s' }} />
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>{projectStats.progress}%</span>
+              <span style={{ fontSize: 12, color: '#94a3b8' }}>({projectStats.done}/{projectStats.total})</span>
+            </div>
+          </div>
+        )}
 
         {/* ── 음성 인식 중 오버레이 ── */}
         {(voiceStatus === 'listening' || voiceStatus === 'processing') && (
@@ -467,6 +530,40 @@ export default function App() {
           }}>
             {/* Main Tabs (Calendar/Board/Tasks) */}
             <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', minHeight: isDesktop || isTablet ? 650 : 'auto' }}>
+              {/* 프로젝트 헤더 바 */}
+              {selectedProject && (
+                <div style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, 
+                  background: selectedProject.color || '#f1f5f9', 
+                  borderRadius: 16, padding: '12px 16px', marginBottom: 16,
+                  color: '#fff'
+                }}>
+                  <button 
+                    onClick={() => setSelectedProjectId(null)}
+                    style={{ 
+                      background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, 
+                      padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 
+                    }}
+                  >
+                    ← 전체
+                  </button>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedProject.title}</div>
+                    {projectStats && (
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>
+                        {projectStats.done}/{projectStats.total} 완료 ({projectStats.progress}%)
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ width: 64, height: 64, position: 'relative' }}>
+                    <svg width={64} height={64} viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
+                      <circle cx={32} cy={32} r={28} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth={6} />
+                      <circle cx={32} cy={32} r={28} fill="none" stroke="#fff" strokeWidth={6} 
+                        strokeDasharray={176} strokeDashoffset={176 - (176 * (projectStats?.progress || 0) / 100)} />
+                    </svg>
+                  </div>
+                </div>
+              )}
               {activeTab === 'calendar' && (
                  isMobile ? (
                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -489,6 +586,7 @@ export default function App() {
                     onDateSelect={setSelectedDate}
                     onTaskClick={setSelectedTask}
                     onApptClick={setSelectedAppt}
+                    projects={projects}
                   />
                 </div>
               )}
@@ -541,8 +639,8 @@ export default function App() {
       )}
 
       {selectedAppt && <AppointmentModal appt={selectedAppt} currentUser={currentUser} onClose={() => setSelectedAppt(null)} onUpdate={async (id, data) => { const result = await updateAppointment(id, data); if (!result?.error) setSelectedAppt(result); return result; }} onDelete={deleteAppointment} />}
-      {selectedTask && <TaskModal task={selectedTask} users={users} currentUser={currentUser} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onAddComment={handleAddComment} getComments={getComments} />}
-      {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} initialNLText={voiceNLText} initialParsedData={voiceParsedData} users={users} currentUser={currentUser} onClose={() => { setShowCreate(false); setVoiceNLText(''); setVoiceParsedData(null); }} onCreate={async (data) => { await handleCreateTask(data); fetchTasks(); }} onCreateAppt={async (data) => { await addAppointment(data); fetchAppointments(); }} />}
+      {selectedTask && <TaskModal task={selectedTask} users={users} currentUser={currentUser} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onAddComment={handleAddComment} getComments={getComments} projects={projects} />}
+      {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} defaultProjectId={selectedProjectId} initialNLText={voiceNLText} initialParsedData={voiceParsedData} users={users} currentUser={currentUser} projects={projects} onClose={() => { setShowCreate(false); setVoiceNLText(''); setVoiceParsedData(null); }} onCreate={async (data) => { await handleCreateTask(data); fetchTasks(); }} onCreateAppt={async (data) => { await addAppointment(data); fetchAppointments(); }} />}
       {showAdmin && <AdminPage currentUser={currentUser} onClose={() => setShowAdmin(false)} />}
       <Toast toast={toast} />
       <style>{`* { box-sizing: border-box; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; display: inline-block; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
