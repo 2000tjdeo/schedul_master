@@ -60,7 +60,7 @@ export default function FocusPanel({
       {selectedProject && projectStats && (
         <div style={{
           borderRadius: 16, overflow: 'hidden',
-          background: selectedProject.color || ACCENT,
+          background: ACCENT,
         }}>
           <div style={{ padding: '16px 16px 12px', color: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -169,31 +169,6 @@ export default function FocusPanel({
         )}
       </div>
 
-      {/* Progress Card (Dynamic Data) */}
-      <div style={{ 
-        marginTop: 'auto', 
-        background: ACCENT, 
-        padding: 20, 
-        borderRadius: 20, 
-        color: '#fff',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        <div style={{ position: 'absolute', right: -20, top: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-           <div style={{ 
-              width: 44, height: 44, border: '4px solid rgba(255,255,255,0.2)', 
-              borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              fontSize: 10, fontWeight: 800 
-            }}>
-             {productivity}%
-           </div>
-           <div>
-             <p style={{ fontSize: 10, fontWeight: 700, opacity: 0.8, textTransform: 'uppercase' }}>Productivity</p>
-             <h5 style={{ fontSize: 12, fontWeight: 600 }}>{productivity}% of goals completed</h5>
-           </div>
-        </div>
-      </div>
     </aside>
   );
 }
