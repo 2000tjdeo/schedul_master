@@ -100,15 +100,19 @@ export default function AdminPage({ currentUser, onClose }) {
 
   const fetchProjects = useCallback(async () => {
     try {
-      const { data } = await supabase.from('sm_tasks').select('project_id');
-      const tasksWithProject = (data || []).filter(t => t.project_id);
-      const projectIds = [...new Set(tasksWithProject.map(t => t.project_id))];
-      const projectList = projectIds.map(id => ({
+      const { data } = await supabase.from('sm_tasks').select('project_id, title, category');
+      if (!data) return;
+      // __project_init__ task에서 프로젝트 이름 추출
+      const nameMap = {};
+      data.filter(t => t.category === '__project_init__' && t.project_id).forEach(t => {
+        nameMap[t.project_id] = t.title;
+      });
+      const allIds = [...new Set(data.filter(t => t.project_id).map(t => t.project_id))];
+      setProjects(allIds.map(id => ({
         id,
-        name: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        name: nameMap[id] || id,
         color: projectColor(id),
-      }));
-      setProjects(projectList);
+      })));
     } catch (err) {
       console.error('fetchProjects error:', err);
     }
@@ -165,9 +169,9 @@ export default function AdminPage({ currentUser, onClose }) {
     if (!newProject.name.trim()) return;
     setLoading(true);
     try {
-      const projectId = newProject.name.trim().toLowerCase().replace(/\s+/g, '_');
+      const projectId = crypto.randomUUID();
       const payload = {
-        title: `[${newProject.name}] 프로젝트`,
+        title: newProject.name.trim(),
         project_id: projectId,
         status: 'todo',
         category: '__project_init__',
