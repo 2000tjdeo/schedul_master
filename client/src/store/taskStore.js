@@ -5,6 +5,7 @@ const useTaskStore = create((set, get) => ({
   tasks: [],
   users: [],
   appointments: [],
+  projects: [],
   selectedDate: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
   toast: null,
   loading: false,
@@ -23,6 +24,7 @@ const useTaskStore = create((set, get) => ({
       .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
         if (payload.table === 'sm_tasks') get().fetchTasks();
         if (payload.table === 'sm_appointments') get().fetchAppointments();
+        if (payload.table === 'sm_projects') get().fetchProjects();
       })
       .subscribe();
     set({ syncInterval: channel });
@@ -56,6 +58,16 @@ const useTaskStore = create((set, get) => ({
       console.error('fetchTasks error:', err);
     } finally {
       set({ loading: false });
+    }
+  },
+
+  fetchProjects: async () => {
+    try {
+      const { data, error } = await supabase.from('sm_projects').select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      set({ projects: data || [] });
+    } catch (err) {
+      console.error('fetchProjects error:', err);
     }
   },
 

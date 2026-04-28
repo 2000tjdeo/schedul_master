@@ -135,29 +135,13 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState(null); // 프로젝트 컨텍스트 모드
 
   const {
-    tasks, users, appointments, loading, toast, selectedDate,
-    fetchTasks, fetchUsers, fetchAppointments,
+    tasks, users, appointments, projects, loading, toast, selectedDate,
+    fetchTasks, fetchUsers, fetchAppointments, fetchProjects,
     addTask, updateTask, deleteTask, moveTask,
     addAppointment, updateAppointment, deleteAppointment,
     getComments, addComment, setSelectedDate,
     startRealtimeSync, stopRealtimeSync,
   } = useTaskStore();
-
-  // 프로젝트 목록 (__project_init__ task에서 이름 추출, 나머지는 UUID로 표시)
-  const PROJECT_PALETTE = ['#6366f1','#0ea5e9','#10b981','#f97316','#ef4444','#ec4899','#f59e0b','#8b5cf6','#14b8a6','#64748b'];
-  const toProjectColor = (id = '') => PROJECT_PALETTE[id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PROJECT_PALETTE.length];
-  const projects = useMemo(() => {
-    const nameMap = {};
-    tasks.filter(t => t.category === '__project_init__' && t.project_id).forEach(t => {
-      nameMap[t.project_id] = t.title;
-    });
-    const allIds = [...new Set(tasks.filter(t => t.project_id).map(t => t.project_id))];
-    return allIds.map(id => ({
-      id,
-      name: nameMap[id] || id,
-      color: toProjectColor(id),
-    }));
-  }, [tasks]);
 
   const { isMobile, isTablet, isDesktop } = useViewMode();
 
@@ -183,7 +167,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser) {
-      fetchTasks(); fetchUsers(); fetchAppointments();
+      fetchTasks(); fetchUsers(); fetchAppointments(); fetchProjects();
       startRealtimeSync();
     }
     return () => stopRealtimeSync();
@@ -281,8 +265,8 @@ export default function App() {
   const allTasks = tasks || [];
   
   // 'archived' 상태인 것과 그렇지 않은 것을 분리
-  const activeTasks = allTasks.filter(t => t.status !== 'archived' && t.category !== '__project_init__');
-  const archivedTasks = allTasks.filter(t => t.status === 'archived' && t.category !== '__project_init__');
+  const activeTasks = allTasks.filter(t => t.status !== 'archived');
+  const archivedTasks = allTasks.filter(t => t.status === 'archived');
 
   // 현재 탭이 'archived'면 아카이브된 것들만, 아니면 활성 태스크들만 대상으로 필터링
   const sourceTasks = activeTab === 'archived' ? archivedTasks : activeTasks;

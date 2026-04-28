@@ -100,19 +100,9 @@ export default function AdminPage({ currentUser, onClose }) {
 
   const fetchProjects = useCallback(async () => {
     try {
-      const { data } = await supabase.from('sm_tasks').select('project_id, title, category');
-      if (!data) return;
-      // __project_init__ task에서 프로젝트 이름 추출
-      const nameMap = {};
-      data.filter(t => t.category === '__project_init__' && t.project_id).forEach(t => {
-        nameMap[t.project_id] = t.title;
-      });
-      const allIds = [...new Set(data.filter(t => t.project_id).map(t => t.project_id))];
-      setProjects(allIds.map(id => ({
-        id,
-        name: nameMap[id] || id,
-        color: projectColor(id),
-      })));
+      const { data, error } = await supabase.from('sm_projects').select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      setProjects(data || []);
     } catch (err) {
       console.error('fetchProjects error:', err);
     }
@@ -169,16 +159,9 @@ export default function AdminPage({ currentUser, onClose }) {
     if (!newProject.name.trim()) return;
     setLoading(true);
     try {
-      const projectId = crypto.randomUUID();
-      const payload = {
-        title: newProject.name.trim(),
-        project_id: projectId,
-        status: 'todo',
-        category: '__project_init__',
-        task_date: new Date().toISOString().slice(0, 10),
-      };
+      const payload = { name: newProject.name.trim(), color: newProject.color };
       if (currentUser?.id) payload.created_by = currentUser.id;
-      const { error } = await supabase.from('sm_tasks').insert([payload]).select();
+      const { error } = await supabase.from('sm_projects').insert([payload]);
       if (error) {
         showToast('프로젝트 생성 실패: ' + error.message, 'error');
       } else {
@@ -187,16 +170,16 @@ export default function AdminPage({ currentUser, onClose }) {
         await fetchProjects();
       }
     } catch (err) {
-      console.error('handleAddProject error:', err);
       showToast('프로젝트 생성 실패', 'error');
     }
     setLoading(false);
   };
 
   // 프로젝트 삭제 (관련 업무도 함께 삭제)
-  const handleDeleteProject = async (projectId) => {
-    if (!confirm(`프로젝트 "${projectId}"와 관련된 모든 업무를 삭제하시겠습니까?`)) return;
+  const handleDeleteProject = async (projectId, projectName) => {
+    if (!confirm(`프로젝트 "${projectName}"와 관련된 모든 업무를 삭제하시겠습니까?`)) return;
     await supabase.from('sm_tasks').delete().eq('project_id', projectId);
+    await supabase.from('sm_projects').delete().eq('id', projectId);
     fetchProjects();
   };
 
@@ -209,21 +192,11 @@ export default function AdminPage({ currentUser, onClose }) {
   // 프로젝트 수정 저장
   const handleSaveProject = async () => {
     if (!editProjectName.trim() || !editingProject) return;
-    const oldId = editingProject;
-    const newId = editProjectName.trim().toLowerCase().replace(/\s+/g, '_');
-    
-    // project_id 일괄 업데이트
-    const { data: tasks } = await supabase.from('sm_tasks').select('id').eq('project_id', oldId);
-    if (tasks && tasks.length > 0) {
-      for (const task of tasks) {
-        await supabase.from('sm_tasks').update({ project_id: newId }).eq('id', task.id);
-      }
-    }
-    
+    const { error } = await supabase.from('sm_projects').update({ name: editProjectName.trim() }).eq('id', editingProject);
+    if (!error) showToast('프로젝트 이름이 변경되었습니다', 'success');
     setEditingProject(null);
     setEditProjectName('');
     fetchProjects();
-    showToast('프로젝트 이름이 변경되었습니다', 'success');
   };
 
   // 칩 추가
@@ -579,7 +552,7 @@ export default function AdminPage({ currentUser, onClose }) {
                               background: '#e0e7ff', color: '#3730a3', fontSize: 12, fontWeight: 600,
                               cursor: 'pointer',
                             }}>수정</button>
-                            <button onClick={() => handleDeleteProject(p.id)} style={{
+                            <button onClick={() => handleDeleteProject(p.id, p.name)} style={{
                               padding: '6px 10px', borderRadius: 6, border: 'none',
                               background: '#fee2e2', color: '#dc2626', fontSize: 12, fontWeight: 600,
                               cursor: 'pointer',
