@@ -2,86 +2,58 @@ import React, { useState, useMemo } from 'react';
 import { format, addDays, startOfWeek, eachDayOfInterval, isToday, differenceInDays, parseISO } from 'date-fns';
 import { ACCENT, CATEGORY_COLORS } from '../../utils/colorMap.js';
 
+const COL_W = 64; // px per day column
+const ROW_H = 56; // px per task row
+const LEFT_W = 192; // px for task name column
+
 // ── Gantt Chart Component ───────────────────────────────────────────────────────
 function GanttChart({ tasks = [], onTaskClick, projectColor = ACCENT, projects = [] }) {
   const [viewDays, setViewDays] = useState(14);
-  
-  // Get task color - could be from project or task itself
+
   const getTaskColor = (task) => {
-    if (task.project_id && projects && projects.length > 0) {
+    if (task.project_id && projects?.length > 0) {
       const project = projects.find(p => p.id === task.project_id);
-      if (project && project.color) return project.color;
+      if (project?.color) return project.color;
     }
     return projectColor;
   };
-  
-  // Generate date range for Gantt chart
+
   const dateRange = useMemo(() => {
     const today = new Date();
     const start = startOfWeek(today, { weekStartsOn: 1 });
-    const end = addDays(start, viewDays - 1);
-    return eachDayOfInterval({ start, end });
+    return eachDayOfInterval({ start, end: addDays(start, viewDays - 1) });
   }, [viewDays]);
 
-  // Calculate task position and width
-  const getTaskBarStyle = (task) => {
+  const getBarPos = (task) => {
     if (!task.task_date) return null;
-    
     const startDate = parseISO(task.task_date);
     const endDate = task.due_date ? parseISO(task.due_date) : addDays(startDate, 1);
-    
     const chartStart = dateRange[0];
     const chartEnd = dateRange[dateRange.length - 1];
-    
-    // Calculate offset from chart start
-    let offsetDays = differenceInDays(startDate, chartStart);
-    if (offsetDays < 0) offsetDays = 0;
-    
-    // Calculate width
-    let duration = differenceInDays(endDate, startDate) + 1;
-    if (duration < 1) duration = 1;
-    
-    // Check if fully outside range
     if (startDate > chartEnd || endDate < chartStart) return null;
-    
-    return {
-      offset: offsetDays,
-      width: duration,
-      totalDays: differenceInDays(chartEnd, chartStart) + 1
-    };
+    const offsetDays = Math.max(differenceInDays(startDate, chartStart), 0);
+    const duration = Math.max(differenceInDays(endDate, startDate) + 1, 1);
+    return { left: offsetDays * COL_W, width: Math.max(duration * COL_W, 60) };
   };
 
-  // Get status colors
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'done':
-        return { bg: 'from-green-600 to-green-700', icon: 'check_circle', text: 'DONE' };
-      case 'in_progress':
-        return { bg: 'from-primary to-red-600', icon: 'play_circle', text: 'ACTIVE' };
-      default:
-        return { bg: 'from-slate-600 to-slate-800', icon: 'radio_button_unchecked', text: 'TODO' };
-    }
-  };
+  const getStatusText = (status) =>
+    status === 'done' ? 'DONE' : status === 'in_progress' ? 'ACTIVE' : 'TODO';
 
-  const days = ['월', '화', '수', '목', '금', '토', '일'];
+  const todayIndex = dateRange.findIndex(d => isToday(d));
+  const totalGridW = dateRange.length * COL_W;
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl overflow-hidden">
-      {/* Header */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-surface-container-highest">
-        <h3 className="text-base font-black font-['Manrope'] text-on-surface">
-          📊 Gantt Chart
-        </h3>
+        <h3 className="text-base font-black font-['Manrope'] text-on-surface">📊 Gantt Chart</h3>
         <div className="flex gap-1">
           {[7, 14, 21, 30].map(d => (
             <button
               key={d}
               onClick={() => setViewDays(d)}
-              className={`px-2 py-1 text-[10px] font-bold rounded-full transition-colors 
-                ${d === viewDays 
-                  ? 'bg-primary text-white' 
-                  : 'bg-surface text-secondary hover:bg-surface-container-high'
-                }`}
+              className={`px-2 py-1 text-[10px] font-bold rounded-full transition-colors
+                ${d === viewDays ? 'bg-primary text-white' : 'bg-surface text-secondary hover:bg-surface-container-high'}`}
             >
               {d}일
             </button>
@@ -89,129 +61,103 @@ function GanttChart({ tasks = [], onTaskClick, projectColor = ACCENT, projects =
         </div>
       </div>
 
-      {/* Gantt Container */}
-      <div className="flex" style={{ height: '400px' }}>
-        {/* Task List (Left) */}
-        <div className="w-48 flex-shrink-0 bg-surface-container-low border-r border-surface-container-highest z-10">
-          <div className="h-16 flex items-center px-4 border-b border-surface-container-highest">
-            <span className="font-bold text-sm text-on-surface">Task Stream</span>
+      {/* Single scroll container — scrolls both X and Y together */}
+      <div className="overflow-auto" style={{ maxHeight: 420 }}>
+        <div style={{ minWidth: LEFT_W + totalGridW }}>
+
+          {/* ── Header row (sticky top) ── */}
+          <div className="flex sticky top-0 z-20">
+            {/* Corner cell — sticky top + left */}
+            <div
+              className="flex-shrink-0 flex items-center px-4 bg-surface-container-low border-r border-b border-surface-container-highest"
+              style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 30 }}
+            >
+              <span className="font-bold text-sm text-on-surface">Task Stream</span>
+            </div>
+            {/* Date columns */}
+            {dateRange.map((date, i) => (
+              <div
+                key={i}
+                className={`flex-shrink-0 flex items-center justify-center border-r border-b border-surface-container/30 bg-surface ${isToday(date) ? 'bg-primary/5' : ''}`}
+                style={{ width: COL_W, height: ROW_H }}
+              >
+                <div className={`text-center ${isToday(date) ? 'text-primary' : ''}`}>
+                  <p className="text-[10px] uppercase font-bold text-secondary-fixed-dim">{format(date, 'MMM')}</p>
+                  <p className="text-sm font-black">{date.getDate()}</p>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="overflow-y-auto">
-            {tasks.length === 0 ? (
-              <div className="p-4 text-center text-sm text-secondary-fixed-dim">
+
+          {/* ── Task rows ── */}
+          {tasks.length === 0 ? (
+            <div className="flex">
+              <div className="flex items-center justify-center p-6 text-sm text-secondary-fixed-dim" style={{ width: LEFT_W, position: 'sticky', left: 0 }}>
                 업무가 없습니다
               </div>
-            ) : (
-              tasks.map((task, i) => (
-                <div 
-                  key={i}
+            </div>
+          ) : tasks.map((task, i) => {
+            const bar = getBarPos(task);
+            return (
+              <div key={i} className="flex" style={{ height: ROW_H }}>
+                {/* Task name — sticky left */}
+                <div
+                  className="flex-shrink-0 flex flex-col justify-center px-4 bg-surface-container-low border-r border-b border-surface-container-highest/40 hover:bg-surface-container-highest/50 cursor-pointer"
+                  style={{ width: LEFT_W, position: 'sticky', left: 0, zIndex: 10 }}
                   onClick={() => onTaskClick?.(task)}
-                  className="h-16 flex flex-col justify-center px-4 hover:bg-surface-container-highest/50 cursor-pointer border-b border-surface-container-highest/20"
                 >
                   <span className="font-bold text-sm text-on-surface truncate">{task.title}</span>
-                  <span className="text-[10px] text-secondary-fixed-dim uppercase truncate">
-                    {task.category || '업무'}
-                  </span>
+                  <span className="text-[10px] text-secondary-fixed-dim truncate">{task.category || '업무'}</span>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
 
-        {/* Gantt Bars (Right) */}
-        <div className="flex-grow overflow-x-auto bg-surface">
-          {/* Date Header */}
-          <div className="flex h-16 border-b border-surface-container-highest sticky top-0 z-10 bg-surface">
-            {dateRange.map((date, i) => {
-              const isTodayDate = isToday(date);
-              return (
-                <div 
-                  key={i}
-                  className="flex-shrink-0 flex items-center justify-center border-r border-surface-container/30"
-                  style={{ width: '64px' }}
+                {/* Bar area */}
+                <div
+                  className="relative border-b border-surface-container-highest/20 cursor-pointer"
+                  style={{ width: totalGridW }}
+                  onClick={() => onTaskClick?.(task)}
                 >
-                  <div className={`text-center ${isTodayDate ? 'text-primary' : ''}`}>
-                    <p className="text-[10px] uppercase font-bold text-secondary-fixed-dim">
-                      {format(date, 'MMM')}
-                    </p>
-                    <p className="text-sm font-black">{date.getDate()}</p>
-                  </div>
+                  {/* Grid lines */}
+                  {dateRange.map((_, gi) => (
+                    <div
+                      key={gi}
+                      className="absolute top-0 bottom-0 border-r border-surface-container/20"
+                      style={{ left: gi * COL_W, width: COL_W }}
+                    />
+                  ))}
+
+                  {/* Today line */}
+                  {todayIndex >= 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-primary/40 z-10"
+                      style={{ left: todayIndex * COL_W + COL_W / 2 }}
+                    />
+                  )}
+
+                  {/* Bar */}
+                  {bar && (
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 h-9 rounded-full flex items-center px-4 shadow overflow-hidden"
+                      style={{
+                        left: bar.left + 4,
+                        width: bar.width - 8,
+                        background:
+                          task.status === 'done' ? '#10b981'
+                          : task.status === 'in_progress' ? getTaskColor(task)
+                          : '#64748b',
+                      }}
+                    >
+                      {task.status === 'in_progress' && (
+                        <div className="absolute inset-y-0 left-0 w-1/2 bg-white/20 rounded-l-full" />
+                      )}
+                      <span className="text-white text-xs font-bold truncate relative z-10">
+                        {getStatusText(task.status)}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Grid Background */}
-          <div className="relative pt-0">
-            {/* Grid Lines */}
-            <div className="absolute inset-0 flex pointer-events-none">
-              {dateRange.map((_, i) => (
-                <div 
-                  key={i}
-                  className="flex-shrink-0 border-r border-surface-container/20 h-full"
-                  style={{ width: '64px' }}
-                />
-              ))}
-            </div>
-
-            {/* Today Line */}
-            {(() => {
-              const todayIndex = dateRange.findIndex(d => isToday(d));
-              if (todayIndex >= 0) {
-                return (
-                  <div 
-                    className="absolute top-0 bottom-0 w-0.5 bg-primary/40 z-20"
-                    style={{ left: `${todayIndex * 64 + 32}px` }}
-                  />
-                );
-              }
-              return null;
-            })()}
-
-            {/* Task Bars */}
-            <div className="relative z-10">
-              {tasks.map((task, i) => {
-                const barStyle = getTaskBarStyle(task);
-                const statusStyle = getStatusStyle(task.status);
-
-                return (
-                  <div
-                    key={i}
-                    className="h-16 flex items-center cursor-pointer hover:opacity-90 transition-opacity border-b border-surface-container-highest/20"
-                    onClick={() => onTaskClick?.(task)}
-                  >
-                    {barStyle && (() => {
-                      const leftPercent = (barStyle.offset / barStyle.totalDays) * 100;
-                      const widthPercent = (barStyle.width / barStyle.totalDays) * 100;
-                      return (
-                        <div
-                          className="h-10 rounded-full flex items-center px-4 shadow-lg relative overflow-hidden flex-shrink-0"
-                          style={{
-                            marginLeft: `${leftPercent}%`,
-                            width: `${Math.max(widthPercent, 8)}%`,
-                            minWidth: '60px',
-                            background: task.status === 'done' ? '#10b981' : task.status === 'in_progress' ? getTaskColor(task) : '#64748b',
-                          }}
-                        >
-                          {task.status === 'in_progress' && (
-                            <div className="absolute inset-y-0 left-0 bg-white/30 rounded-l-full" style={{ width: '50%' }} />
-                          )}
-                          {task.status === 'done' && (
-                            <span className="material-symbols-outlined text-white ml-auto text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
-                              check_circle
-                            </span>
-                          )}
-                          <span className="text-white text-xs font-bold truncate absolute left-4 right-8">
-                            {statusStyle.text}
-                          </span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
