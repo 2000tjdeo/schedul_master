@@ -64,6 +64,7 @@ function Avatar({ name, size = 36 }) {
 
 export default function AdminPage({ currentUser, onClose }) {
   const showToast = useTaskStore(s => s.showToast);
+  const fetchProjectsGlobal = useTaskStore(s => s.fetchProjects);
   const [tab,         setTab]         = useState('members');
   const [members,     setMembers]     = useState([]);
   const [invitations, setInvitations] = useState([]);
@@ -103,10 +104,11 @@ export default function AdminPage({ currentUser, onClose }) {
       const { data, error } = await supabase.from('sm_projects').select('*').order('created_at', { ascending: true });
       if (error) throw error;
       setProjects((data || []).map(p => ({ ...p, name: p.title })));
+      fetchProjectsGlobal(); // 전체 앱 프로젝트 목록도 동시 갱신
     } catch (err) {
       console.error('fetchProjects error:', err);
     }
-  }, []);
+  }, [fetchProjectsGlobal]);
 
   useEffect(() => {
     fetchMembers();
