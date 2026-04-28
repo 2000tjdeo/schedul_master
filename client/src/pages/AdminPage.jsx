@@ -525,10 +525,7 @@ export default function AdminPage({ currentUser, onClose }) {
                             autoFocus
                           />
                         ) : (
-                          <>
-                            <span style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</span>
-                            <span style={{ fontSize: 12, color: '#888' }}>({p.id})</span>
-                          </>
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</span>
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 4 }}>
