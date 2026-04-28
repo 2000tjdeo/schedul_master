@@ -290,7 +290,8 @@ export default function App() {
     const projectTasks = allTasks.filter(t => t.project_id === selectedProjectId && t.status !== 'archived');
     if (projectTasks.length === 0) return null;
     const done = projectTasks.filter(t => t.status === 'done').length;
-    return { total: projectTasks.length, done, progress: Math.round((done / projectTasks.length) * 100) };
+    const inProgress = projectTasks.filter(t => t.status === 'in_progress').length;
+    return { total: projectTasks.length, done, inProgress, progress: Math.round((done / projectTasks.length) * 100) };
   }, [allTasks, selectedProjectId]);
 
   const stats = { 
@@ -386,37 +387,6 @@ export default function App() {
           voiceSupported={voiceSupported}
         />
 
-        {/* ── 프로젝트 컨텍스트 바 ── */}
-        {selectedProject && projectStats && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '12px 24px', background: '#fff',
-            borderBottom: `1px solid ${selectedProject.color}22`,
-          }}>
-            <button
-              onClick={() => setSelectedProjectId(null)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '6px 12px', borderRadius: 8,
-                border: 'none', background: '#f1f5f9', cursor: 'pointer',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_back</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>뒤로</span>
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 12, height: 12, borderRadius: '50%', background: selectedProject.color }} />
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{selectedProject.name}</span>
-            </div>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, height: 6, borderRadius: 3, background: '#e2e8f0', overflow: 'hidden' }}>
-                <div style={{ width: `${projectStats.progress}%`, height: '100%', background: selectedProject.color, borderRadius: 3, transition: 'width 0.3s' }} />
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>{projectStats.progress}%</span>
-              <span style={{ fontSize: 12, color: '#94a3b8' }}>({projectStats.done}/{projectStats.total})</span>
-            </div>
-          </div>
-        )}
 
         {/* ── 음성 인식 중 오버레이 ── */}
         {(voiceStatus === 'listening' || voiceStatus === 'processing') && (
@@ -520,40 +490,6 @@ export default function App() {
           }}>
             {/* Main Tabs (Calendar/Board/Tasks) */}
             <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', minHeight: isDesktop || isTablet ? 650 : 'auto' }}>
-              {/* 프로젝트 헤더 바 */}
-              {selectedProject && (
-                <div style={{ 
-                  display: 'flex', alignItems: 'center', gap: 12, 
-                  background: selectedProject.color || '#f1f5f9', 
-                  borderRadius: 16, padding: '12px 16px', marginBottom: 16,
-                  color: '#fff'
-                }}>
-                  <button 
-                    onClick={() => setSelectedProjectId(null)}
-                    style={{ 
-                      background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, 
-                      padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 
-                    }}
-                  >
-                    ← 전체
-                  </button>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedProject.title}</div>
-                    {projectStats && (
-                      <div style={{ fontSize: 12, opacity: 0.9 }}>
-                        {projectStats.done}/{projectStats.total} 완료 ({projectStats.progress}%)
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ width: 64, height: 64, position: 'relative' }}>
-                    <svg width={64} height={64} viewBox="0 0 64 64" style={{ transform: 'rotate(-90deg)' }}>
-                      <circle cx={32} cy={32} r={28} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth={6} />
-                      <circle cx={32} cy={32} r={28} fill="none" stroke="#fff" strokeWidth={6} 
-                        strokeDasharray={176} strokeDashoffset={176 - (176 * (projectStats?.progress || 0) / 100)} />
-                    </svg>
-                  </div>
-                </div>
-              )}
               {activeTab === 'calendar' && (
                  isMobile ? (
                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -603,7 +539,7 @@ export default function App() {
           {/* Desktop View: FocusPanel is persistent on the right */}
           {isDesktop && activeTab === 'calendar' && (
             <div style={{ width: 320, flexShrink: 0, height: '100%', overflowY: 'auto', background: STITCH.side }}>
-              <FocusPanel selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} />
+              <FocusPanel selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} selectedProject={selectedProject} projectStats={projectStats} onClearProject={() => setSelectedProjectId(null)} />
             </div>
           )}
 

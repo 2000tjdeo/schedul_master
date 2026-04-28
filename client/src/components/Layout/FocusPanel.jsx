@@ -7,7 +7,10 @@ export default function FocusPanel({
   tasks = [],
   appointments = [],
   onTaskClick,
-  onApptClick
+  onApptClick,
+  selectedProject = null,
+  projectStats = null,
+  onClearProject,
 }) {
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -53,6 +56,50 @@ export default function FocusPanel({
       overflowY: 'auto',
       borderLeft: '1px solid #f1f1f1',
     }}>
+      {/* 프로젝트 대시보드 */}
+      {selectedProject && projectStats && (
+        <div style={{
+          borderRadius: 16, overflow: 'hidden',
+          background: selectedProject.color || ACCENT,
+        }}>
+          <div style={{ padding: '16px 16px 12px', color: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(255,255,255,0.7)', display: 'inline-block' }} />
+                <span style={{ fontSize: 14, fontWeight: 800, fontFamily: 'Manrope, sans-serif' }}>{selectedProject.name}</span>
+              </div>
+              <button
+                onClick={onClearProject}
+                style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 6, padding: '3px 10px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+              >
+                전체 보기
+              </button>
+            </div>
+            {/* 진행률 바 */}
+            <div style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 6, height: 6, marginBottom: 8 }}>
+              <div style={{ width: `${projectStats.progress}%`, height: '100%', background: '#fff', borderRadius: 6, transition: 'width 0.4s' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, opacity: 0.85 }}>{projectStats.done} / {projectStats.total} 완료</span>
+              <span style={{ fontSize: 22, fontWeight: 900, fontFamily: 'Manrope, sans-serif' }}>{projectStats.progress}%</span>
+            </div>
+          </div>
+          {/* 상태별 태스크 수 */}
+          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.15)' }}>
+            {[
+              { label: '할 일', count: projectStats.total - projectStats.done - (projectStats.inProgress || 0) },
+              { label: '진행 중', count: projectStats.inProgress || 0 },
+              { label: '완료', count: projectStats.done },
+            ].map((s, i) => (
+              <div key={i} style={{ flex: 1, padding: '8px 0', textAlign: 'center', borderRight: i < 2 ? '1px solid rgba(255,255,255,0.15)' : 'none' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{s.count}</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <h3 style={{ fontSize: 20, fontWeight: 800, color: STITCH.text, marginBottom: 4, fontFamily: 'Manrope, sans-serif' }}>Today's Focus</h3>
         <p style={{ fontSize: 13, color: STITCH.softText, fontWeight: 500 }}>{dateStr}</p>
