@@ -43,7 +43,7 @@ function LoginModal({ onLogin }) {
       let loggedUser = null;
       let reqPin = false;
       let errMsg = null;
-      const { data: existingUser } = await supabase.from('sm_users').select('*').eq('name', name.trim()).single();
+      const { data: existingUser } = await supabase.from('sm_users').select('*').eq('name', name.trim()).maybeSingle();
       if (existingUser) {
         if (existingUser.pin) {
           if (!pin) { reqPin = true; errMsg = 'Please enter PIN.'; }

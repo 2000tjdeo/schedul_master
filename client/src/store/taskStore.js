@@ -226,7 +226,15 @@ const useTaskStore = create((set, get) => ({
   createUser: async (name) => {
     try {
       const { data, error } = await supabase.from('sm_users').insert([{ name }]).select().single();
-      if (error) throw error;
+      if (error) {
+        // PK sequence desync or duplicate name — try fetching the existing row
+        const { data: existing } = await supabase.from('sm_users').select('*').eq('name', name).maybeSingle();
+        if (existing) {
+          set(state => ({ users: [...state.users.filter(u => u.id !== existing.id), existing] }));
+          return existing;
+        }
+        throw error;
+      }
       set(state => ({ users: [...state.users, data] }));
       return data;
     } catch (err) {
