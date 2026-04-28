@@ -407,19 +407,14 @@ export default function TaskModal({
             </div>
             <div>
               <FieldLabel>프로젝트</FieldLabel>
-              <select
+              <PillSelect
                 value={form.project_id}
-                onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
-                style={{
-                  width: '100%', padding: '7px 10px',
-                  border: '1.5px solid #e8e8e8', borderRadius: 8,
-                  fontSize: 13, outline: 'none', background: '#fafafa',
-                  cursor: 'pointer', fontFamily: 'inherit', color: '#333',
-                }}
-              >
-                <option value="">없음</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+                onChange={v => setForm(f => ({ ...f, project_id: v }))}
+                options={[
+                  { value: '', label: '없음', color: '#64748b' },
+                  ...projects.map(p => ({ value: p.id, label: p.name || p.title, color: p.color || '#6366f1' }))
+                ]}
+              />
             </div>
             <div>
               <FieldLabel>담당자</FieldLabel>
