@@ -159,7 +159,7 @@ export default function AdminPage({ currentUser, onClose }) {
     if (!newProject.name.trim()) return;
     setLoading(true);
     try {
-      const payload = { name: newProject.name.trim(), color: newProject.color };
+      const payload = { title: newProject.name.trim(), color: newProject.color };
       if (currentUser?.id) payload.created_by = currentUser.id;
       const { error } = await supabase.from('sm_projects').insert([payload]);
       if (error) {
@@ -192,7 +192,7 @@ export default function AdminPage({ currentUser, onClose }) {
   // 프로젝트 수정 저장
   const handleSaveProject = async () => {
     if (!editProjectName.trim() || !editingProject) return;
-    const { error } = await supabase.from('sm_projects').update({ name: editProjectName.trim() }).eq('id', editingProject);
+    const { error } = await supabase.from('sm_projects').update({ title: editProjectName.trim() }).eq('id', editingProject);
     if (!error) showToast('프로젝트 이름이 변경되었습니다', 'success');
     setEditingProject(null);
     setEditProjectName('');

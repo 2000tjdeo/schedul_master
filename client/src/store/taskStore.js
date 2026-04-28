@@ -65,7 +65,8 @@ const useTaskStore = create((set, get) => ({
     try {
       const { data, error } = await supabase.from('sm_projects').select('*').order('created_at', { ascending: true });
       if (error) throw error;
-      set({ projects: data || [] });
+      // name 필드로 정규화 (title → name)
+      set({ projects: (data || []).map(p => ({ ...p, name: p.title })) });
     } catch (err) {
       console.error('fetchProjects error:', err);
     }
