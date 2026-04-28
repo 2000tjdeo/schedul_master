@@ -173,50 +173,40 @@ function GanttChart({ tasks = [], onTaskClick, projectColor = ACCENT, projects =
               {tasks.map((task, i) => {
                 const barStyle = getTaskBarStyle(task);
                 const statusStyle = getStatusStyle(task.status);
-                
-                if (!barStyle) return null;
-                
-                const leftPercent = (barStyle.offset / barStyle.totalDays) * 100;
-                const widthPercent = (barStyle.width / barStyle.totalDays) * 100;
-                
+
                 return (
-                  <div 
+                  <div
                     key={i}
-                    className="h-16 flex items-center cursor-pointer hover:opacity-90 transition-opacity"
+                    className="h-16 flex items-center cursor-pointer hover:opacity-90 transition-opacity border-b border-surface-container-highest/20"
                     onClick={() => onTaskClick?.(task)}
                   >
-                    <div 
-                      className={`h-10 rounded-full flex items-center px-4 shadow-lg relative overflow-hidden`}
-                      style={{
-                        marginLeft: `${leftPercent}%`,
-                        width: `${Math.max(widthPercent, 8)}%`,
-                        minWidth: '60px',
-                        background: task.status === 'done' ? '#10b981' : task.status === 'in_progress' ? getTaskColor(task) : '#64748b',
-                      }}
-                    >
-                      {/* Progress fill */}
-                      {task.status === 'in_progress' && (
-                        <div 
-                          className="absolute inset-y-0 left-0 bg-white/30 rounded-l-full"
-                          style={{ width: '50%' }}
-                        />
-                      )}
-                      
-                      {/* Completed check */}
-                      {task.status === 'done' && (
-                        <span 
-                          className="material-symbols-outlined text-white ml-auto text-sm"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
+                    {barStyle && (() => {
+                      const leftPercent = (barStyle.offset / barStyle.totalDays) * 100;
+                      const widthPercent = (barStyle.width / barStyle.totalDays) * 100;
+                      return (
+                        <div
+                          className="h-10 rounded-full flex items-center px-4 shadow-lg relative overflow-hidden flex-shrink-0"
+                          style={{
+                            marginLeft: `${leftPercent}%`,
+                            width: `${Math.max(widthPercent, 8)}%`,
+                            minWidth: '60px',
+                            background: task.status === 'done' ? '#10b981' : task.status === 'in_progress' ? getTaskColor(task) : '#64748b',
+                          }}
                         >
-                          check_circle
-                        </span>
-                      )}
-                      
-                      {/* Label */}
-                      <span className="text-white text-xs font-bold truncate absolute left-4 right-8">
-                        {statusStyle.text}
-                      </span>
-                    </div>
+                          {task.status === 'in_progress' && (
+                            <div className="absolute inset-y-0 left-0 bg-white/30 rounded-l-full" style={{ width: '50%' }} />
+                          )}
+                          {task.status === 'done' && (
+                            <span className="material-symbols-outlined text-white ml-auto text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
+                              check_circle
+                            </span>
+                          )}
+                          <span className="text-white text-xs font-bold truncate absolute left-4 right-8">
+                            {statusStyle.text}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
