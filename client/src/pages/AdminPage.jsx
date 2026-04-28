@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ACCENT } from '../utils/colorMap.js';
 import { supabase } from '../lib/supabase.js';
+import useTaskStore from '../store/taskStore.js';
+
+// 프로젝트 ID → 고정 색상 (랜덤 아님)
+const PROJECT_PALETTE = ['#6366f1','#0ea5e9','#10b981','#f97316','#ef4444','#ec4899','#f59e0b','#8b5cf6','#14b8a6','#64748b'];
+const projectColor = (id = '') => PROJECT_PALETTE[id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PROJECT_PALETTE.length];
 
 // ── QR 코드 (CDN 없이 URL로 표현) ─────────────────────────────────────────────
 function QRDisplay({ inviteUrl }) {
@@ -58,6 +63,7 @@ function Avatar({ name, size = 36 }) {
 }
 
 export default function AdminPage({ currentUser, onClose }) {
+  const showToast = useTaskStore(s => s.showToast);
   const [tab,         setTab]         = useState('members');
   const [members,     setMembers]     = useState([]);
   const [invitations, setInvitations] = useState([]);
@@ -100,10 +106,9 @@ export default function AdminPage({ currentUser, onClose }) {
       const projectList = projectIds.map(id => ({
         id,
         name: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-        color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+        color: projectColor(id),
       }));
       setProjects(projectList);
-      console.log('Fetched projects:', projectList.length);
     } catch (err) {
       console.error('fetchProjects error:', err);
     }
@@ -161,29 +166,25 @@ export default function AdminPage({ currentUser, onClose }) {
     setLoading(true);
     try {
       const projectId = newProject.name.trim().toLowerCase().replace(/\s+/g, '_');
-      console.log('Creating project:', projectId, newProject.name);
-      
       const payload = {
-        title: `[${newProject.name}] 초기화`,
+        title: `[${newProject.name}] 프로젝트`,
         project_id: projectId,
         status: 'todo',
-        category: '업무',
+        category: '__project_init__',
         task_date: new Date().toISOString().slice(0, 10),
       };
       if (currentUser?.id) payload.created_by = currentUser.id;
-      
-      const { data, error } = await supabase.from('sm_tasks').insert([payload]).select();
-      
+      const { error } = await supabase.from('sm_tasks').insert([payload]).select();
       if (error) {
-        get().showToast('프로젝트 생성 실패: ' + error.message, 'error');
+        showToast('프로젝트 생성 실패: ' + error.message, 'error');
       } else {
-        get().showToast('프로젝트 "' + newProject.name + '" 생성 완료', 'success');
-        setNewProject({ name: '', color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0') });
+        showToast(`프로젝트 "${newProject.name}" 생성 완료`, 'success');
+        setNewProject({ name: '', color: '#6366f1' });
         await fetchProjects();
       }
     } catch (err) {
       console.error('handleAddProject error:', err);
-      get().showToast('프로젝트 생성 실패', 'error');
+      showToast('프로젝트 생성 실패', 'error');
     }
     setLoading(false);
   };
@@ -218,7 +219,7 @@ export default function AdminPage({ currentUser, onClose }) {
     setEditingProject(null);
     setEditProjectName('');
     fetchProjects();
-    get().showToast('프로젝트 이름이 변경되었습니다', 'success');
+    showToast('프로젝트 이름이 변경되었습니다', 'success');
   };
 
   // 칩 추가

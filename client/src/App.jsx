@@ -143,13 +143,20 @@ export default function App() {
     startRealtimeSync, stopRealtimeSync,
   } = useTaskStore();
 
-  // 프로젝트 목록 (task.project_id에서 고유값 추출)
+  // 프로젝트 목록 (task.project_id에서 고유값 추출, __project_init__ 제외)
+  const PROJECT_PALETTE = ['#6366f1','#0ea5e9','#10b981','#f97316','#ef4444','#ec4899','#f59e0b','#8b5cf6','#14b8a6','#64748b'];
+  const toProjectColor = (id = '') => PROJECT_PALETTE[id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % PROJECT_PALETTE.length];
   const projects = useMemo(() => {
-    const projectIds = [...new Set(tasks.filter(t => t.project_id).map(t => t.project_id))];
-    return projectIds.map(id => ({
+    const projectIds = [...new Set(
+      tasks.filter(t => t.project_id && t.category !== '__project_init__').map(t => t.project_id)
+    )];
+    // __project_init__ task만 있는 프로젝트도 포함
+    const initIds = [...new Set(tasks.filter(t => t.project_id).map(t => t.project_id))];
+    const allIds = [...new Set([...projectIds, ...initIds])];
+    return allIds.map(id => ({
       id,
       name: id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+      color: toProjectColor(id),
     }));
   }, [tasks]);
 
@@ -275,8 +282,8 @@ export default function App() {
   const allTasks = tasks || [];
   
   // 'archived' 상태인 것과 그렇지 않은 것을 분리
-  const activeTasks = allTasks.filter(t => t.status !== 'archived');
-  const archivedTasks = allTasks.filter(t => t.status === 'archived');
+  const activeTasks = allTasks.filter(t => t.status !== 'archived' && t.category !== '__project_init__');
+  const archivedTasks = allTasks.filter(t => t.status === 'archived' && t.category !== '__project_init__');
 
   // 현재 탭이 'archived'면 아카이브된 것들만, 아니면 활성 태스크들만 대상으로 필터링
   const sourceTasks = activeTab === 'archived' ? archivedTasks : activeTasks;
