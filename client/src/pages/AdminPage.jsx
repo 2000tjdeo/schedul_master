@@ -102,7 +102,7 @@ export default function AdminPage({ currentUser, onClose }) {
     try {
       const { data, error } = await supabase.from('sm_projects').select('*').order('created_at', { ascending: true });
       if (error) throw error;
-      setProjects(data || []);
+      setProjects((data || []).map(p => ({ ...p, name: p.title })));
     } catch (err) {
       console.error('fetchProjects error:', err);
     }
