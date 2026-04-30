@@ -7,8 +7,12 @@ import { ACCENT, CATEGORY_COLORS } from '../utils/colorMap.js';
 import { supabase } from '../lib/supabase.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const APPT_COLORS = ['#b7131a', '#48626e', '#006578', '#7c3aed', '#0ea5e9', '#059669', '#ea580c'];
-const CATEGORIES = ['업무', '개인', '미팅', '기타', '급함', '공부'];
+const CATEGORIES = [
+  { value: '업무', color: '#6366f1' },
+  { value: '미팅', color: '#0ea5e9' },
+  { value: '개인', color: '#10b981' },
+  { value: '기타', color: '#71717a' },
+];
 const PRIORITIES = [
   { value: 'low',    label: '낮음', color: '#71717a' },
   { value: 'medium', label: '중간', color: '#f59e0b' },
@@ -64,16 +68,16 @@ function Card({ children, style }) {
 
 function CardRow({ label, children, noBorder, compact }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', minHeight: compact ? 42 : 50, padding: '0 16px', borderBottom: noBorder ? 'none' : '1px solid #f1f1f1', gap: 12 }}>
+    <div style={{ display: 'flex', alignItems: 'center', minHeight: compact ? 42 : 50, padding: '0 16px', borderBottom: noBorder ? 'none' : '1px solid #f1f1f1', gap: 12, overflow: 'hidden' }}>
       {label && <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c', width: 70, flexShrink: 0, fontFamily: 'Manrope' }}>{label}</span>}
-      <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>{children}</div>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>{children}</div>
     </div>
   );
 }
 
 function Pill({ label, active, onClick, accentColor = ACCENT }) {
   return (
-    <button onClick={onClick} style={{ padding: '6px 14px', borderRadius: 10, border: 'none', background: active ? accentColor : '#f4f4f5', color: active ? '#fff' : '#71717a', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Manrope', transition: 'all 0.2s' }}>
+    <button onClick={onClick} style={{ padding: '6px 14px', borderRadius: 10, border: 'none', background: active ? accentColor : '#f4f4f5', color: active ? '#fff' : '#71717a', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Manrope', transition: 'all 0.2s', flexShrink: 0, whiteSpace: 'nowrap' }}>
       {label}
     </button>
   );
@@ -378,7 +382,7 @@ function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, e
       </CardRow>
       {open === 'ed' && (
         <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
-          <DateDrum value={endDate} onChange={(v) => { onEndDate(v); setOpen(null); }} />
+          <DateDrum value={endDate} onChange={(v) => { onEndDate(v); setOpen(null); }} minDate={startDate} />
         </div>
       )}
       {open === 'et' && !allDay && (
@@ -393,7 +397,7 @@ function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, e
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 export default function UnifiedCreateModal({ defaultType = 'task', defaultDate = null, defaultStatus = 'todo', defaultProjectId = null, initialNLText = '', initialParsedData = null, users = [], currentUser, projects = [], onClose, onCreate, onCreateAppt }) {
   const initDate = defaultDate || todayStr();
-  const [type, setType] = useState(defaultType);
+  const [type] = useState('task');
   const [loading, setLoading] = useState(false);
   const [aiDescLoading, setAiDescLoading] = useState(false);
   const [appt, setAppt] = useState({ title: '', date: initDate, start_time: roundedTime(0), end_time: roundedTime(60), allDay: false, color: ACCENT, location: '', attendees: '', memo: '', project_id: defaultProjectId });
@@ -490,18 +494,10 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
         
         {/* Header */}
         <div style={{ padding: '24px 24px 0', textAlign: 'center', position: 'relative' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1c1c', fontFamily: 'Manrope' }}>New {isAppt ? 'Appointment' : 'Task'}</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1c1c', fontFamily: 'Manrope' }}>새 일정</h2>
           <button onClick={onClose} style={{ position: 'absolute', right: 24, top: 24, border: 'none', background: 'transparent', cursor: 'pointer', color: '#9ca3af' }}>
             <span className="material-symbols-outlined">close</span>
           </button>
-        </div>
-
-        {/* Tab Switcher */}
-        <div style={{ padding: '16px 24px 0' }}>
-          <div style={{ display: 'flex', background: '#f1f1f1', padding: 4, borderRadius: 12 }}>
-            <button onClick={() => setType('appointment')} style={{ flex: 1, padding: '8px', border: 'none', borderRadius: 9, background: isAppt ? '#fff' : 'transparent', color: isAppt ? ACCENT : '#71717a', fontWeight: isAppt ? 800 : 500, cursor: 'pointer', fontFamily: 'Manrope' }}>Appointment</button>
-            <button onClick={() => setType('task')} style={{ flex: 1, padding: '8px', border: 'none', borderRadius: 9, background: !isAppt ? '#fff' : 'transparent', color: !isAppt ? ACCENT : '#71717a', fontWeight: !isAppt ? 800 : 500, cursor: 'pointer', fontFamily: 'Manrope' }}>Task</button>
-          </div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -549,7 +545,13 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
             endDate={isAppt ? appt.date : task.due_date} 
             endTime={isAppt ? appt.end_time : task.end_time} 
             duration={task.duration}
-            onStartDate={v => isAppt ? setAppt(a=>({...a, date:v})) : setTask(t=>({...t, task_date:v}))} 
+            onStartDate={v => isAppt ? setAppt(a=>({...a, date:v})) : setTask(t=>{
+              if (t.task_date && t.due_date && t.due_date >= t.task_date) {
+                const gap = Math.round((new Date(t.due_date+'T00:00:00') - new Date(t.task_date+'T00:00:00')) / 86400000);
+                return {...t, task_date: v, due_date: addDays(v, Math.max(0, gap))};
+              }
+              return {...t, task_date: v, due_date: v >= t.due_date ? v : t.due_date};
+            })}
             onStartTime={v => {
               const dur = isAppt ? 60 : (task.duration || 60);
               const end = addMinutes(v, dur);
@@ -575,7 +577,7 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
           {projectList.length > 0 && (
             <Card>
               <CardRow label="Project" noBorder>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 2, width: '100%' }}>
                   {isAppt ? (
                     <>
                       <Pill label="없음" active={!appt.project_id} onClick={() => setAppt(a => ({...a, project_id: ''}))} accentColor="#64748b" />
@@ -596,18 +598,23 @@ export default function UnifiedCreateModal({ defaultType = 'task', defaultDate =
             </Card>
           )}
           {!isAppt && (
-             <Card>
-               <CardRow label="Priority" noBorder>
-                 <div style={{ display: 'flex', gap: 4 }}>{PRIORITIES.map(p => <Pill key={p.value} label={p.label} active={task.priority === p.value} onClick={() => setTask(t=>({...t, priority:p.value}))} accentColor={p.color} />)}</div>
-               </CardRow>
-             </Card>
+            <Card>
+              <CardRow label="카테고리">
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {CATEGORIES.map(c => <Pill key={c.value} label={c.value} active={task.category === c.value} onClick={() => setTask(t=>({...t, category:c.value}))} accentColor={c.color} />)}
+                </div>
+              </CardRow>
+              <CardRow label="우선순위" noBorder>
+                <div style={{ display: 'flex', gap: 4 }}>{PRIORITIES.map(p => <Pill key={p.value} label={p.label} active={task.priority === p.value} onClick={() => setTask(t=>({...t, priority:p.value}))} accentColor={p.color} />)}</div>
+              </CardRow>
+            </Card>
           )}
         </div>
 
         {/* Footer */}
         <div style={{ padding: '16px 24px 24px', display: 'flex', gap: 12 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '16px', borderRadius: 16, border: '1px solid #e4e4e7', background: '#fff', color: '#71717a', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Manrope' }}>Cancel</button>
-          <button onClick={handleSubmit} disabled={loading} style={{ flex: 2, padding: '16px', borderRadius: 16, border: 'none', background: `linear-gradient(to bottom, ${ACCENT}, #8d0000)`, color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'Manrope', boxShadow: `0 8px 24px ${ACCENT}44`, opacity: loading ? 0.7 : 1 }}>Save {isAppt ? 'Appt' : 'Task'}</button>
+          <button onClick={handleSubmit} disabled={loading} style={{ flex: 2, padding: '16px', borderRadius: 16, border: 'none', background: `linear-gradient(to bottom, ${ACCENT}, #8d0000)`, color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'Manrope', boxShadow: `0 8px 24px ${ACCENT}44`, opacity: loading ? 0.7 : 1 }}>저장</button>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { getMonthMatrix, toYMD, isToday, isPast } from '../../utils/dateUtils.js
 import { CATEGORY_COLORS, ACCENT } from '../../utils/colorMap.js';
 import { getHoliday } from '../../utils/koreanHolidays.js';
 
-const DOW_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+const DOW_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // ── 드래그 중인 아이템 전역 참조 ─────────────────────────────────────────────
 // { type: 'task'|'appt', item: object, sourceYmd: string }
@@ -123,8 +123,8 @@ function getDayBg(di, isCurrentMonth, isTodayDay, isSelected) {
   if (!isCurrentMonth) return '#f6f6f6';
   if (isTodayDay)      return '#fff7f7';
   if (isSelected)      return '#fff3f3';
-  if (di === 5)        return '#f4f7ff';
-  if (di === 6)        return '#fff4f4';
+  if (di === 0)        return '#fff4f4';
+  if (di === 6)        return '#f4f7ff';
   return '#fff';
 }
 
@@ -205,10 +205,10 @@ export default function CalendarGrid({
           <div key={d} style={{
             padding: '8px 0', textAlign: 'center',
             fontSize: 11, fontWeight: 700,
-            color: i === 5 ? '#6b8fd4' : i === 6 ? '#c97070' : '#9ca3af',
+            color: i === 0 ? '#c97070' : i === 6 ? '#6b8fd4' : '#9ca3af',
             borderBottom: '1px solid #e0e0e0',
             borderRight: i < 6 ? '1px solid #ebebeb' : 'none',
-            background: i === 5 ? '#f4f7ff' : i === 6 ? '#fff4f4' : '#fff',
+            background: i === 0 ? '#fff4f4' : i === 6 ? '#f4f7ff' : '#fff',
           }}>
             {d}
           </div>
@@ -242,15 +242,22 @@ export default function CalendarGrid({
 
               const MAX_BARS = 3;
               const MAX_CHIPS = 3;
-              const visibleBars     = barTasks.slice(0, MAX_BARS);
-              const dotAppts        = dayAppts;
-              const visibleDotAppts = dotAppts.slice(0, MAX_CHIPS);
-              const visibleDotTasks = dotTasks.slice(0, Math.max(0, MAX_CHIPS - visibleDotAppts.length));
+              const visibleBars = barTasks.slice(0, MAX_BARS);
+
+              // 약속 + 단일 업무를 시간순 정렬 후 슬라이스
+              const dotItems = [
+                ...dayAppts.map(a => ({ _type: 'appt', _time: a.start_time || '', ...a })),
+                ...dotTasks.map(t => ({ _type: 'task', _time: t.task_time  || '', ...t })),
+              ].sort((a, b) => {
+                if (!a._time && !b._time) return 0;
+                if (!a._time) return 1;
+                if (!b._time) return -1;
+                return a._time.localeCompare(b._time);
+              });
+              const visibleDotItems = dotItems.slice(0, MAX_CHIPS);
 
               const overflowBars = Math.max(0, barTasks.length - MAX_BARS);
-              const overflowDots = Math.max(0,
-                (dotAppts.length - visibleDotAppts.length) +
-                (dotTasks.length - visibleDotTasks.length));
+              const overflowDots = Math.max(0, dotItems.length - visibleDotItems.length);
               const overflow = overflowBars + overflowDots;
 
               return (
@@ -280,7 +287,7 @@ export default function CalendarGrid({
                   onMouseEnter={e => {
                     if (!isDragTarget && !isTodayDay && !isSelected)
                       e.currentTarget.style.background =
-                        di === 5 ? '#e8eeff' : di === 6 ? '#ffe8e8' : '#f5f5f5';
+                        di === 0 ? '#ffe8e8' : di === 6 ? '#e8eeff' : '#f5f5f5';
                   }}
                   onMouseLeave={e => {
                     if (!isDragTarget && !isTodayDay && !isSelected)
@@ -300,8 +307,8 @@ export default function CalendarGrid({
                         color: isTodayDay      ? '#fff'
                              : !isCurrentMonth ? '#ccc'
                              : (holiday && (holiday.type === 'holiday' || holiday.type === 'substitute')) ? '#e05555'
-                             : di === 5         ? '#6b8fd4'
-                             : di === 6         ? '#c97070'
+                             : di === 0         ? '#c97070'
+                             : di === 6         ? '#6b8fd4'
                              : '#1a1c1c',
                       }}>
                         {day.getDate()}
@@ -336,35 +343,35 @@ export default function CalendarGrid({
                     );
                   })}
 
-                  {/* ── 칩 행: 약속 + 단일 업무 ──────────────────────── */}
-                  {(visibleDotAppts.length > 0 || visibleDotTasks.length > 0) && (
+                  {/* ── 칩 행: 약속 + 단일 업무 (시간순) ────────────── */}
+                  {visibleDotItems.length > 0 && (
                     <div style={{
                       display: 'flex', flexDirection: 'column', gap: 2,
                       marginTop: visibleBars.length > 0 ? 3 : 2,
                       minWidth: 0,
                     }}>
-                      {/* 약속 칩 */}
-                      {visibleDotAppts.map(a => (
-                        <ItemChip
-                          key={'a' + a.id}
-                          color={a.color || '#6366f1'}
-                          label={a.title}
-                          sub={a.start_time ? a.start_time.slice(0, 5) : undefined}
-                          onClick={() => onApptClick?.(a)}
-                          dragItem={{ type: 'appt', item: a, sourceYmd: a.date }}
-                        />
-                      ))}
-                      {/* 단일 업무 칩 */}
-                      {visibleDotTasks.map(t => {
-                        const colors = CATEGORY_COLORS[t.category] || CATEGORY_COLORS['기타'];
+                      {visibleDotItems.map(item => {
+                        if (item._type === 'appt') {
+                          return (
+                            <ItemChip
+                              key={'a' + item.id}
+                              color={item.color || '#6366f1'}
+                              label={item.title}
+                              sub={item.start_time ? item.start_time.slice(0, 5) : undefined}
+                              onClick={() => onApptClick?.(item)}
+                              dragItem={{ type: 'appt', item, sourceYmd: item.date }}
+                            />
+                          );
+                        }
+                        const colors = CATEGORY_COLORS[item.category] || CATEGORY_COLORS['기타'];
                         return (
                           <ItemChip
-                            key={'dt' + t.id}
+                            key={'dt' + item.id}
                             color={colors.border}
-                            label={t.title}
-                            sub={t.task_time ? t.task_time.slice(0, 5) : undefined}
-                            onClick={() => onTaskClick?.(t)}
-                            dragItem={{ type: 'task', item: t, sourceYmd: t.task_date || t.due_date }}
+                            label={item.title}
+                            sub={item.task_time ? item.task_time.slice(0, 5) : undefined}
+                            onClick={() => onTaskClick?.(item)}
+                            dragItem={{ type: 'task', item, sourceYmd: item.task_date || item.due_date }}
                           />
                         );
                       })}

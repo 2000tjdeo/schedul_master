@@ -2,7 +2,7 @@ import React from 'react';
 import { getWeekDays, toYMD, isToday, addDays } from '../../utils/dateUtils.js';
 import { CATEGORY_COLORS, ACCENT } from '../../utils/colorMap.js';
 
-const DOW_KO = ['월', '화', '수', '목', '금', '토', '일'];
+const DOW_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function WeekView({ tasks, appointments = [], selectedDate, onSelectDate, weekBase, onWeekChange, onTaskClick, onApptClick }) {
   const baseDate = weekBase ? new Date(weekBase + 'T00:00:00') : new Date(selectedDate + 'T00:00:00');
@@ -67,7 +67,9 @@ export default function WeekView({ tasks, appointments = [], selectedDate, onSel
           const todayDay = isToday(ymd);
           const selected = ymd === selectedDate;
           const dayItems = getItemsForDay(day);
-          const isWeekend = i >= 5;
+          const isSun = i === 0;
+          const isSat = i === 6;
+          const dowColor = isSun ? '#c97070' : isSat ? '#6b8fd4' : '#9ca3af';
 
           return (
             <div
@@ -76,7 +78,7 @@ export default function WeekView({ tasks, appointments = [], selectedDate, onSel
               style={{
                 borderRight: i < 6 ? '1px solid #f0f0f0' : 'none',
                 borderTop: todayDay ? `2px solid ${ACCENT}` : '2px solid transparent',
-                background: todayDay ? `rgba(230,51,37,0.04)` : selected ? '#fffbfa' : '#fff',
+                background: todayDay ? `rgba(230,51,37,0.04)` : selected ? '#fffbfa' : isSun ? '#fff8f8' : isSat ? '#f8f9ff' : '#fff',
                 padding: '10px 8px',
                 cursor: 'pointer',
                 transition: 'background 0.1s',
@@ -85,12 +87,12 @@ export default function WeekView({ tasks, appointments = [], selectedDate, onSel
             >
               {/* Day header */}
               <div style={{ marginBottom: 4 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: isWeekend ? '#aaa' : '#9ca3af', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: dowColor, textTransform: 'uppercase' }}>
                   {DOW_KO[i]}
                 </div>
                 <div style={{
                   fontSize: '1.4rem', fontWeight: 700,
-                  color: todayDay ? ACCENT : isWeekend ? '#aaa' : '#111',
+                  color: todayDay ? ACCENT : isSun ? '#c97070' : isSat ? '#6b8fd4' : '#111',
                   lineHeight: 1.1,
                 }}>
                   {day.getDate()}

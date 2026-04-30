@@ -75,7 +75,7 @@ export default function YearView({ year, selectedDate, onSelectDate, tasks = [],
                 display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', 
                 textAlign: 'center', fontSize: '10px', color: '#9ca3af', fontWeight: 800, textTransform: 'uppercase', marginBottom: 8 
               }}>
-                <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+                <div style={{color:'#c97070'}}>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div style={{color:'#6b8fd4'}}>S</div>
               </div>
 
               <div style={{
@@ -101,7 +101,7 @@ export default function YearView({ year, selectedDate, onSelectDate, tasks = [],
                         padding: '6px 0',
                         cursor: 'pointer',
                         fontWeight: active || selected || event ? 800 : 500,
-                        color: active ? '#fff' : (selected || event ? ACCENT : '#52525b'),
+                        color: active ? '#fff' : (selected || event ? ACCENT : i % 7 === 0 ? '#c97070' : i % 7 === 6 ? '#6b8fd4' : '#52525b'),
                         background: active ? ACCENT : (selected ? `${ACCENT}15` : 'transparent'),
                         borderRadius: '6px',
                         position: 'relative',

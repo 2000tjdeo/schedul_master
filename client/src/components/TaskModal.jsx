@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CATEGORY_COLORS, PRIORITY_COLORS, ACCENT } from '../utils/colorMap.js';
 import { formatTime, formatKoreanDate } from '../utils/dateUtils.js';
+import { DateDrum } from './ui/DrumPicker.jsx';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function timeToMin(t) {
@@ -72,9 +73,45 @@ function TextInput({ value, onChange, placeholder, type = 'text' }) {
   );
 }
 
+function DatePickerField({ value, onChange, minDate }) {
+  const [open, setOpen] = useState(false);
+  const fmtDisplay = (v) => {
+    if (!v) return '날짜 선택';
+    const [y, m, d] = v.split('-').map(Number);
+    return `${y}. ${m}. ${d}.`;
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', padding: '8px 10px', textAlign: 'left',
+          border: `1.5px solid ${open ? ACCENT : '#e8e8e8'}`, borderRadius: 8,
+          fontSize: 13, background: '#fafafa', color: value ? '#333' : '#aaa',
+          cursor: 'pointer', fontFamily: 'inherit', boxSizing: 'border-box',
+        }}
+      >
+        {fmtDisplay(value)}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, zIndex: 200,
+          background: '#fff', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+          border: '1px solid #f1f1f1', marginTop: 4, minWidth: 260,
+        }}
+          onClick={e => e.stopPropagation()}
+        >
+          <DateDrum value={value} onChange={(v) => { onChange(v); setOpen(false); }} minDate={minDate} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PillSelect({ options, value, onChange }) {
   return (
-    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 2 }}>
       {options.map(o => {
         const active = value === o.value;
         return (
@@ -84,6 +121,7 @@ function PillSelect({ options, value, onChange }) {
             background: active ? o.color + '18' : 'transparent',
             color: active ? o.color : '#aaa',
             cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
+            flexShrink: 0, whiteSpace: 'nowrap',
           }}>
             {o.label}
           </button>
@@ -216,7 +254,9 @@ export default function TaskModal({
     status:      task.status,
     priority:    task.priority,
     task_date:   task.task_date || '',
-    due_date:    task.due_date  || '',
+    due_date:    (task.due_date && task.task_date && task.due_date >= task.task_date)
+                   ? task.due_date
+                   : (task.task_date || task.due_date || ''),
     task_time:   task.task_time || '',
     end_time:    initEnd,
     duration:    task.duration  || 60,
@@ -244,7 +284,6 @@ export default function TaskModal({
 
   const set = (k) => (v) => setForm(f => {
     if (k === 'task_date') {
-      // 날짜 간격을 유지하며 종료날짜도 이동
       if (f.task_date && f.due_date) {
         const diffDays = Math.round(
           (new Date(f.due_date + 'T00:00:00') - new Date(f.task_date + 'T00:00:00'))
@@ -252,6 +291,10 @@ export default function TaskModal({
         );
         const newDue = shiftDate(v, Math.max(0, diffDays));
         return { ...f, task_date: v, due_date: newDue };
+      }
+      // due_date 없거나 새 시작일보다 이전이면 due_date를 시작일로 맞춤
+      if (!f.due_date || f.due_date < v) {
+        return { ...f, task_date: v, due_date: v };
       }
       return { ...f, task_date: v };
     }
@@ -383,66 +426,69 @@ export default function TaskModal({
             </div>
           </div>
 
-          {/* 카테고리 / 담당자 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div>
-              <FieldLabel>카테고리</FieldLabel>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                {CATEGORIES.map(cat => {
-                  const active = form.category === cat;
-                  const colors = CATEGORY_COLORS[cat] || CATEGORY_COLORS['기타'];
-                  return (
-                    <button key={cat} onClick={() => setForm(f => ({ ...f, category: cat }))} style={{
-                      padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                      border: `1.5px solid ${active ? colors.border : '#e8e8e8'}`,
-                      background: active ? colors.bg : 'transparent',
-                      color: active ? colors.text : '#aaa',
-                      cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
-                    }}>
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* 카테고리 */}
+          <div>
+            <FieldLabel>카테고리</FieldLabel>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 2 }}>
+              {CATEGORIES.map(cat => {
+                const active = form.category === cat;
+                const colors = CATEGORY_COLORS[cat] || CATEGORY_COLORS['기타'];
+                return (
+                  <button key={cat} onClick={() => setForm(f => ({ ...f, category: cat }))} style={{
+                    padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    border: `1.5px solid ${active ? colors.border : '#e8e8e8'}`,
+                    background: active ? colors.bg : 'transparent',
+                    color: active ? colors.text : '#aaa',
+                    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s',
+                    flexShrink: 0,
+                  }}>
+                    {cat}
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <FieldLabel>프로젝트</FieldLabel>
-              <PillSelect
-                value={form.project_id}
-                onChange={v => setForm(f => ({ ...f, project_id: v }))}
-                options={[
-                  { value: '', label: '없음', color: '#64748b' },
-                  ...projects.map(p => ({ value: p.id, label: p.name || p.title, color: p.color || '#6366f1' }))
-                ]}
-              />
-            </div>
-            <div>
-              <FieldLabel>담당자</FieldLabel>
-              <select
-                value={form.assignee_id}
-                onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}
-                style={{
-                  width: '100%', padding: '7px 10px',
-                  border: '1.5px solid #e8e8e8', borderRadius: 8,
-                  fontSize: 13, outline: 'none', background: '#fafafa',
-                  cursor: 'pointer', fontFamily: 'inherit', color: '#333',
-                }}
-              >
-                <option value="">미배정</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </div>
+          </div>
+
+          {/* 프로젝트 */}
+          <div>
+            <FieldLabel>프로젝트</FieldLabel>
+            <PillSelect
+              value={form.project_id}
+              onChange={v => setForm(f => ({ ...f, project_id: v }))}
+              options={[
+                { value: '', label: '없음', color: '#64748b' },
+                ...projects.map(p => ({ value: p.id, label: p.name || p.title, color: p.color || '#6366f1' }))
+              ]}
+            />
+          </div>
+
+          {/* 담당자 */}
+          <div>
+            <FieldLabel>담당자</FieldLabel>
+            <select
+              value={form.assignee_id}
+              onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}
+              style={{
+                width: '100%', padding: '7px 10px',
+                border: '1.5px solid #e8e8e8', borderRadius: 8,
+                fontSize: 13, outline: 'none', background: '#fafafa',
+                cursor: 'pointer', fontFamily: 'inherit', color: '#333',
+              }}
+            >
+              <option value="">미배정</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
           </div>
 
           {/* 날짜 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div>
               <FieldLabel>시작 날짜</FieldLabel>
-              <TextInput type="date" value={form.task_date} onChange={set('task_date')} />
+              <DatePickerField value={form.task_date} onChange={set('task_date')} />
             </div>
             <div>
               <FieldLabel>종료 날짜</FieldLabel>
-              <TextInput type="date" value={form.due_date} onChange={set('due_date')} />
+              <DatePickerField value={form.due_date} onChange={set('due_date')} minDate={form.task_date} />
             </div>
           </div>
 

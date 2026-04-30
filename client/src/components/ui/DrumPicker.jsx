@@ -135,31 +135,89 @@ export function DrumColumn({ items, value, onChange, width = 60 }) {
   );
 }
 
-// ─── Date drum: Year / Month / Day ────────────────────────────────────────────
-export function DateDrum({ value, onChange }) {
-  // Use native date picker for better mobile support
-  const handleChange = (e) => {
-    onChange(e.target.value);
+// ─── Date drum: inline calendar picker ───────────────────────────────────────
+const DOW_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+export function DateDrum({ value, onChange, minDate }) {
+  const parseDate = (v) => {
+    if (!v) return new Date();
+    const [y, m, d] = v.split('-').map(Number);
+    return new Date(y, m - 1, d);
   };
 
+  const initial = parseDate(value);
+  const [viewYear,  setViewYear]  = useState(initial.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initial.getMonth());
+
+  const prevMonth = (e) => {
+    e.stopPropagation();
+    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
+    else setViewMonth(m => m - 1);
+  };
+  const nextMonth = (e) => {
+    e.stopPropagation();
+    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const firstDay  = new Date(viewYear, viewMonth, 1);
+  const lastDay   = new Date(viewYear, viewMonth + 1, 0);
+  const startOff  = firstDay.getDay(); // Sunday=0
+
+  const cells = [];
+  for (let i = 0; i < startOff; i++) cells.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(d);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const selStr   = value || '';
+
+  const toYMD = (d) =>
+    `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px' }}>
-      <input
-        type="date"
-        value={value || ''}
-        onChange={handleChange}
-        style={{
-          fontSize: 16,
-          padding: '10px 16px',
-          borderRadius: 12,
-          border: '1px solid #e2e8f0',
-          background: '#fff',
-          color: '#1a1c1c',
-          fontFamily: 'Manrope, sans-serif',
-          touchAction: 'manipulation',
-          WebkitAppearance: 'none',
-        }}
-      />
+    <div style={{ padding: '4px 12px 8px', userSelect: 'none' }} onClick={e => e.stopPropagation()}>
+      {/* Month nav */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <button onClick={prevMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#6b7280', padding: '2px 8px', borderRadius: 8 }}>‹</button>
+        <span style={{ fontSize: 13, fontWeight: 800, color: '#374151', fontFamily: 'Manrope' }}>{viewYear}년 {viewMonth + 1}월</span>
+        <button onClick={nextMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#6b7280', padding: '2px 8px', borderRadius: 8 }}>›</button>
+      </div>
+      {/* Day headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 4 }}>
+        {DOW_LABELS.map((d, i) => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: i === 0 ? '#c97070' : i === 6 ? '#6b8fd4' : '#9ca3af' }}>{d}</div>
+        ))}
+      </div>
+      {/* Day cells */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px 0' }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={`e${i}`} />;
+          const ymd   = toYMD(d);
+          const isSel = ymd === selStr;
+          const isTod = ymd === todayStr;
+          const col = i % 7;
+          const baseColor = col === 0 ? '#c97070' : col === 6 ? '#6b8fd4' : '#374151';
+          const isDisabled = minDate && ymd < minDate;
+          return (
+            <div
+              key={d}
+              onClick={(e) => { e.stopPropagation(); if (!isDisabled) onChange(ymd); }}
+              style={{
+                height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: isDisabled ? 'default' : 'pointer', borderRadius: 8,
+                background: isSel ? '#b7131a' : isTod ? '#fef2f2' : 'transparent',
+                color: isDisabled ? '#d1d5db' : isSel ? '#fff' : isTod ? '#b7131a' : baseColor,
+                opacity: isDisabled ? 0.4 : 1,
+                fontWeight: isSel || isTod ? 800 : 400,
+                fontSize: 13,
+                transition: 'background 0.15s',
+              }}
+            >
+              {d}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -53,10 +53,8 @@ export function getMonthMatrix(year, month) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
 
-  // 0=Sun,1=Mon,...,6=Sat => we want Mon=0
-  let startDow = firstDay.getDay(); // 0=Sun
-  // shift so Monday = 0
-  startDow = (startDow + 6) % 7;
+  // 0=Sun,1=Mon,...,6=Sat => Sunday=0 (week starts on Sunday)
+  let startDow = firstDay.getDay();
 
   const days = [];
   const startDate = addDays(firstDay, -startDow);
@@ -73,11 +71,11 @@ export function getMonthMatrix(year, month) {
 }
 
 export function getWeekDays(baseDate) {
-  // Returns Mon~Sun of the week containing baseDate
+  // Returns Sun~Sat of the week containing baseDate
   const d = baseDate instanceof Date ? new Date(baseDate) : new Date(baseDate + 'T00:00:00');
-  const dow = (d.getDay() + 6) % 7; // Mon=0
-  const monday = addDays(d, -dow);
-  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  const dow = d.getDay(); // Sun=0
+  const sunday = addDays(d, -dow);
+  return Array.from({ length: 7 }, (_, i) => addDays(sunday, i));
 }
 
 export function formatTime(timeStr) {
@@ -99,4 +97,4 @@ export function formatTimeRange(timeStr, duration) {
   return `${pad(h)}:${pad(m)} – ${pad(endH)}:${pad(endM)}`;
 }
 
-export const DAY_ABBR_KO = ['월', '화', '수', '목', '금', '토', '일'];
+export const DAY_ABBR_KO = ['일', '월', '화', '수', '목', '금', '토'];
