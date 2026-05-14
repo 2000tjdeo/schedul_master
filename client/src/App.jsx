@@ -27,6 +27,7 @@ import MobileKanbanBoard from './components/Kanban/MobileKanbanBoard.jsx';
 
 // Archive
 import ArchiveView from './components/Archive/ArchiveView.jsx';
+import FeedPage from './pages/FeedPage.jsx';
 
 // ── Login Modal ──────────────────────────────────────────────────────────────
 function LoginModal({ onLogin }) {
@@ -526,7 +527,14 @@ export default function App() {
                   />
                 </div>
               )}
-              {activeTab === 'tasks' && <TaskListView tasks={filteredTasks} onTaskClick={setSelectedTask} />}
+              {activeTab === 'feed' && (
+                <FeedPage
+                  projects={projects}
+                  users={users}
+                  tasks={filteredTasks}
+                  currentUser={currentUser}
+                />
+              )}
               {activeTab === 'archived' && (
                 <ArchiveView
                   tasks={archivedTasks}

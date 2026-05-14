@@ -5,7 +5,7 @@ const TABS = [
   { id: 'calendar', label: 'Home',    icon: 'home' },
   { id: 'kanban',   label: 'Board',  icon: 'dashboard' },
   // 중앙 마이크 버튼 자리 (빈 슬롯)
-  { id: 'tasks',    label: 'Tasks',  icon: 'assignment' },
+  { id: 'feed',     label: 'Feed',   icon: 'feed' },
   { id: 'timeline', label: 'Timeline', icon: 'timeline' },
 ];
 
