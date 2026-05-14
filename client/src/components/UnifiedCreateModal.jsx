@@ -273,27 +273,29 @@ function NLStrip({ onParsed, isAppt, initialText = '' }) {
 }
 
 // ─── DateTime Card (Drum) ─────────────────────────────────────────────────────
-function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, endTime, duration, onStartDate, onStartTime, onEndDate, onEndTime, accentColor }) {
-  const [open, setOpen] = useState(null);
-  const endDateRef = useRef(null);
-  const endTimeRef = useRef(null);
-  const startDateRef = useRef(null);
-  const startTimeRef = useRef(null);
+const timeInputStyle = {
+  padding: '7px 10px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+  border: '1.5px solid #e2e8f0', background: '#fff', color: '#374151',
+  fontFamily: 'Manrope', cursor: 'pointer', outline: 'none',
+  touchAction: 'manipulation',
+};
 
-  const toggle = (key) => {
-    const willOpen = open !== key;
-    setOpen(open === key ? null : key);
-    
-    // Scroll to the opened picker
+function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, endTime, duration, onStartDate, onStartTime, onEndDate, onEndTime, accentColor }) {
+  const [openDate, setOpenDate] = useState(null); // 'sd' | 'ed' | null
+  const startDateRef = useRef(null);
+  const endDateRef = useRef(null);
+
+  const toggleDate = (key) => {
+    const willOpen = openDate !== key;
+    setOpenDate(prev => prev === key ? null : key);
     setTimeout(() => {
-      const ref = key === 'ed' ? endDateRef : key === 'et' ? endTimeRef : key === 'sd' ? startDateRef : key === 'st' ? startTimeRef : null;
+      const ref = key === 'sd' ? startDateRef : endDateRef;
       if (ref?.current && willOpen) {
-        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 50);
   };
 
-  // Handle start time change - recalculate end time based on duration
   const handleStartTimeChange = (newStartTime) => {
     const dur = duration || 60;
     const newEndTime = addMinutes(newStartTime, dur);
@@ -305,57 +307,44 @@ function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, e
     <Card>
       <CardRow label="All Day"><Toggle on={allDay} onToggle={onAllDayToggle} /></CardRow>
       <CardRow label="Start">
-        <button 
+        <button
           type="button"
           ref={startDateRef}
-          onClick={(e) => { e.preventDefault(); toggle('sd'); }}
+          onClick={(e) => { e.preventDefault(); toggleDate('sd'); }}
           style={{
             padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
-            border: `1.5px solid ${open === 'sd' ? accentColor : '#e2e8f0'}`,
-            background: open === 'sd' ? `${accentColor}15` : '#fff',
-            color: open === 'sd' ? accentColor : '#64748b',
+            border: `1.5px solid ${openDate === 'sd' ? accentColor : '#e2e8f0'}`,
+            background: openDate === 'sd' ? `${accentColor}15` : '#fff',
+            color: openDate === 'sd' ? accentColor : '#64748b',
             cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
           }}
         >
           {fmtDate(startDate)}
         </button>
         {!allDay && (
-          <button 
-            type="button"
-            ref={startTimeRef}
-            onClick={(e) => { e.preventDefault(); toggle('st'); }}
-            style={{
-              padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
-              border: `1.5px solid ${open === 'st' ? accentColor : '#e2e8f0'}`,
-              background: open === 'st' ? `${accentColor}15` : '#fff',
-              color: open === 'st' ? accentColor : '#64748b',
-              cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
-            }}
-          >
-            {fmtTime(startTime)}
-          </button>
+          <input
+            type="time"
+            value={startTime || '09:00'}
+            onChange={e => handleStartTimeChange(e.target.value)}
+            style={timeInputStyle}
+          />
         )}
       </CardRow>
-      {open === 'sd' && (
+      {openDate === 'sd' && (
         <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
-          <DateDrum value={startDate} onChange={(v) => { onStartDate(v); setOpen(null); }} />
-        </div>
-      )}
-      {open === 'st' && !allDay && (
-        <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
-          <TimeDrum value={startTime} onChange={handleStartTimeChange} />
+          <DateDrum value={startDate} onChange={(v) => { onStartDate(v); setOpenDate(null); }} />
         </div>
       )}
       <CardRow label="End" noBorder>
-        <button 
+        <button
           type="button"
           ref={endDateRef}
-          onClick={(e) => { e.preventDefault(); toggle('ed'); }}
+          onClick={(e) => { e.preventDefault(); toggleDate('ed'); }}
           style={{
             padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
-            border: `1.5px solid ${open === 'ed' ? accentColor : '#e2e8f0'}`,
-            background: open === 'ed' ? `${accentColor}15` : '#fff',
-            color: open === 'ed' ? accentColor : '#64748b',
+            border: `1.5px solid ${openDate === 'ed' ? accentColor : '#e2e8f0'}`,
+            background: openDate === 'ed' ? `${accentColor}15` : '#fff',
+            color: openDate === 'ed' ? accentColor : '#64748b',
             cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
             minHeight: '36px',
           }}
@@ -363,31 +352,17 @@ function DateTimeCard({ allDay, onAllDayToggle, startDate, startTime, endDate, e
           {fmtDate(endDate)}
         </button>
         {!allDay && (
-          <button 
-            type="button"
-            ref={endTimeRef}
-            onClick={(e) => { e.preventDefault(); toggle('et'); }}
-            style={{
-              padding: '8px 16px', borderRadius: 12, fontSize: 12, fontWeight: 700,
-              border: `1.5px solid ${open === 'et' ? accentColor : '#e2e8f0'}`,
-              background: open === 'et' ? `${accentColor}15` : '#fff',
-              color: open === 'et' ? accentColor : '#64748b',
-              cursor: 'pointer', fontFamily: 'Manrope', touchAction: 'manipulation',
-              minHeight: '36px',
-            }}
-          >
-            {fmtTime(endTime)}
-          </button>
+          <input
+            type="time"
+            value={endTime || '10:00'}
+            onChange={e => onEndTime(e.target.value)}
+            style={timeInputStyle}
+          />
         )}
       </CardRow>
-      {open === 'ed' && (
+      {openDate === 'ed' && (
         <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
-          <DateDrum value={endDate} onChange={(v) => { onEndDate(v); setOpen(null); }} minDate={startDate} />
-        </div>
-      )}
-      {open === 'et' && !allDay && (
-        <div style={{ borderTop: '1px solid #f1f1f1', padding: '12px 0', zIndex: 1000, position: 'relative', background: '#fff' }}>
-          <TimeDrum value={endTime} onChange={(v) => { onEndTime(v); setOpen(null); }} />
+          <DateDrum value={endDate} onChange={(v) => { onEndDate(v); setOpenDate(null); }} minDate={startDate} />
         </div>
       )}
     </Card>
