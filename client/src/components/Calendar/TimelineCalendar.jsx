@@ -8,8 +8,6 @@ const LEFT_W = 192; // px for task name column
 
 // ── Gantt Chart Component ───────────────────────────────────────────────────────
 function GanttChart({ tasks = [], onTaskClick, projectColor = ACCENT, projects = [] }) {
-  const [viewDays, setViewDays] = useState(14);
-
   const getTaskColor = (task) => {
     if (task.project_id && projects?.length > 0) {
       const project = projects.find(p => p.id === task.project_id);
@@ -19,10 +17,18 @@ function GanttChart({ tasks = [], onTaskClick, projectColor = ACCENT, projects =
   };
 
   const dateRange = useMemo(() => {
-    const today = new Date();
-    const start = startOfWeek(today, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end: addDays(start, viewDays - 1) });
-  }, [viewDays]);
+    const tasksWithDates = tasks.filter(t => t.task_date || t.due_date);
+    if (tasksWithDates.length === 0) {
+      const today = new Date();
+      const start = startOfWeek(today, { weekStartsOn: 1 });
+      return eachDayOfInterval({ start, end: addDays(start, 13) });
+    }
+    const allDates = tasksWithDates.flatMap(t => [t.task_date, t.due_date].filter(Boolean));
+    const sorted = [...allDates].sort();
+    const minDate = parseISO(sorted[0]);
+    const maxDate = parseISO(sorted[sorted.length - 1]);
+    return eachDayOfInterval({ start: addDays(minDate, -2), end: addDays(maxDate, 3) });
+  }, [tasks]);
 
   const getBarPos = (task) => {
     if (!task.task_date) return null;
@@ -45,20 +51,8 @@ function GanttChart({ tasks = [], onTaskClick, projectColor = ACCENT, projects =
   return (
     <div className="bg-surface-container-lowest rounded-2xl overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-surface-container-highest">
+      <div className="flex items-center px-4 py-3 border-b border-surface-container-highest">
         <h3 className="text-base font-black font-['Manrope'] text-on-surface">📊 Gantt Chart</h3>
-        <div className="flex gap-1">
-          {[7, 14, 21, 30].map(d => (
-            <button
-              key={d}
-              onClick={() => setViewDays(d)}
-              className={`px-2 py-1 text-[10px] font-bold rounded-full transition-colors
-                ${d === viewDays ? 'bg-primary text-white' : 'bg-surface text-secondary hover:bg-surface-container-high'}`}
-            >
-              {d}일
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Single scroll container — scrolls both X and Y together */}
