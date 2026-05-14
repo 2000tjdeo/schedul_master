@@ -144,17 +144,17 @@ export default function AppointmentModal({ appt, onClose, onUpdate, onDelete, cu
             onBlur={e  => (e.target.style.borderBottomColor = '#f0f0f0')}
           />
 
-          {/* 날짜 + 시간 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <Field label="날짜">
+          {/* 날짜 + 시간 — Option A: Start / End rows */}
+          <div style={{ borderRadius: 12, overflow: 'hidden', border: '1.5px solid #e8e8e8' }}>
+            {/* Start row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', minWidth: 36, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Start</span>
               <input type="date" value={form.date}
                 onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                style={inputStyle}
+                style={{ ...inputStyle, flex: 1 }}
                 onFocus={e => e.target.style.borderColor = form.color}
                 onBlur={e  => e.target.style.borderColor = '#e8e8e8'}
               />
-            </Field>
-            <Field label="시작 시간">
               <input type="time" value={form.start_time}
                 onChange={e => {
                   const v = e.target.value;
@@ -167,25 +167,33 @@ export default function AppointmentModal({ appt, onClose, onUpdate, onDelete, cu
                     return { ...f, start_time: v };
                   });
                 }}
-                style={inputStyle}
+                style={{ ...inputStyle, width: 'auto' }}
                 onFocus={e => e.target.style.borderColor = form.color}
                 onBlur={e  => e.target.style.borderColor = '#e8e8e8'}
               />
-            </Field>
-            <Field label="종료 시간">
+            </div>
+            {/* End row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: '#fafafa' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', minWidth: 36, textTransform: 'uppercase', letterSpacing: '0.04em' }}>End</span>
+              <input type="date" value={form.date}
+                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                style={{ ...inputStyle, flex: 1 }}
+                onFocus={e => e.target.style.borderColor = form.color}
+                onBlur={e  => e.target.style.borderColor = '#e8e8e8'}
+              />
               <input type="time" value={form.end_time}
                 onChange={e => {
                   const v = e.target.value;
                   setForm(f => ({ ...f, end_time: v < f.start_time ? f.start_time : v }));
                 }}
-                style={inputStyle}
+                style={{ ...inputStyle, width: 'auto' }}
                 onFocus={e => e.target.style.borderColor = form.color}
                 onBlur={e  => e.target.style.borderColor = '#e8e8e8'}
               />
-            </Field>
+            </div>
           </div>
           {dur && (
-            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: -8 }}>소요: {dur}</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: -6 }}>소요: {dur}</div>
           )}
 
           {/* 장소 */}
