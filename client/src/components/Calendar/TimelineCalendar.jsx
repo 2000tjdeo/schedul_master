@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { format, addDays, startOfWeek, eachDayOfInterval, isToday, differenceInDays, parseISO } from 'date-fns';
 import { ACCENT, CATEGORY_COLORS } from '../../utils/colorMap.js';
 
-const COL_W = 64; // px per day column
+const COL_W = 36; // px per day column
 const ROW_H = 56; // px per task row
 const LEFT_W = 192; // px for task name column
 
