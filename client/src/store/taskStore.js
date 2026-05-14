@@ -235,6 +235,48 @@ const useTaskStore = create((set, get) => ({
     }
   },
 
+  // ── Notes (Project Feed) ────────────────────────────────────────────────��────
+  fetchNotes: async (projectId = null) => {
+    try {
+      let query = supabase
+        .from('sm_notes')
+        .select('*, from_user:from_user_id(name), to_user:to_user_id(name)')
+        .order('created_at', { ascending: false });
+      if (projectId) query = query.eq('project_id', projectId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('fetchNotes error:', err);
+      return [];
+    }
+  },
+
+  addNote: async (noteData) => {
+    try {
+      const clean = { ...noteData };
+      Object.keys(clean).forEach(k => { if (clean[k] === '' || clean[k] === null || clean[k] === undefined) delete clean[k]; });
+      const { data, error } = await supabase.from('sm_notes').insert([clean]).select('*, from_user:from_user_id(name), to_user:to_user_id(name)').single();
+      if (error) throw error;
+      get().showToast('기록이 저장되었습니다.', 'success');
+      return data;
+    } catch (err) {
+      get().showToast('저장 실패: ' + err.message, 'error');
+      return { error: err.message };
+    }
+  },
+
+  deleteNote: async (id) => {
+    try {
+      const { error } = await supabase.from('sm_notes').delete().eq('id', id);
+      if (error) throw error;
+      get().showToast('삭제되었습니다.', 'info');
+      return { success: true };
+    } catch (err) {
+      return { error: err.message };
+    }
+  },
+
   // ── Users ────────────────────────────────────────────────────────────────────
   createUser: async (name) => {
     try {

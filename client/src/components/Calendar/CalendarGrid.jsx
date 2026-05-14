@@ -11,8 +11,11 @@ const dragState = { current: null };
 
 // ── 기간 업무 bar ──────────────────────────────────────────────────────────
 function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave }) {
-  const colors = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['기타'];
-  const past   = isPast(task.due_date || task.task_date);
+  const isArchived = task.status === 'archived';
+  const colors = isArchived
+    ? { bg: '#f3f4f6', border: '#9ca3af', text: '#9ca3af' }
+    : (CATEGORY_COLORS[task.category] || CATEGORY_COLORS['기타']);
+  const past = isPast(task.due_date || task.task_date);
 
   return (
     <div style={{
@@ -24,8 +27,9 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
       zIndex: hovered ? 20 : 1,
     }}>
       <div
-        draggable
+        draggable={!isArchived}
         onDragStart={(e) => {
+          if (isArchived) return;
           e.stopPropagation();
           dragState.current = {
             type: 'task',
@@ -47,12 +51,12 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
           borderRadius: isFirst && isLast ? 4 : isFirst ? '4px 0 0 4px' : isLast ? '0 4px 4px 0' : 0,
           background: colors.bg,
           border: `1px solid ${colors.border}44`,
-          cursor: 'grab',
+          cursor: isArchived ? 'pointer' : 'grab',
           overflow: 'hidden',
           transition: 'all 0.14s ease',
           display: 'flex', alignItems: 'center',
           padding: '0 4px',
-          opacity: past ? 0.4 : 1,
+          opacity: isArchived ? 0.5 : (past ? 0.4 : 1),
           boxShadow: hovered ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
         }}
       >
@@ -60,7 +64,8 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
           <span style={{
             fontSize: 9, fontWeight: 600, color: colors.text,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            fontFamily: 'Manrope, sans-serif'
+            fontFamily: 'Manrope, sans-serif',
+            textDecoration: isArchived ? 'line-through' : 'none',
           }}>
             {task.title}
           </span>
@@ -71,8 +76,9 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
 }
 
 // ── 칩 (약속 / 단일 업무) ───────────────────────────────────────────────────
-function ItemChip({ color, label, sub, onClick, dragItem }) {
+function ItemChip({ color, label, sub, onClick, dragItem, archived }) {
   const [hovered, setHovered] = useState(false);
+  const chipColor = archived ? '#9ca3af' : color;
 
   return (
     <div
@@ -97,21 +103,23 @@ function ItemChip({ color, label, sub, onClick, dragItem }) {
         height: 16,
         padding: '0 4px',
         borderRadius: 4,
-        background: hovered ? `${color}25` : `${color}12`,
-        border: `1px solid ${color}22`,
-        cursor: 'grab',
+        background: archived ? '#f3f4f6' : (hovered ? `${chipColor}25` : `${chipColor}12`),
+        border: `1px solid ${chipColor}22`,
+        cursor: archived ? 'pointer' : 'grab',
         overflow: 'hidden',
         transition: 'all 0.15s',
+        opacity: archived ? 0.65 : 1,
       }}
     >
-      <div style={{ width: 4, height: 4, borderRadius: '50%', background: color, flexShrink: 0 }} />
+      <div style={{ width: 4, height: 4, borderRadius: '50%', background: chipColor, flexShrink: 0 }} />
       <span style={{
         flex: 1,
-        fontSize: 9, fontWeight: 500, color: '#4b5563',
+        fontSize: 9, fontWeight: 500, color: archived ? '#9ca3af' : '#4b5563',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        fontFamily: 'Manrope, sans-serif'
+        fontFamily: 'Manrope, sans-serif',
+        textDecoration: archived ? 'line-through' : 'none',
       }}>
-        {sub && <span style={{ color, opacity: 0.8, marginRight: 4 }}>{sub}</span>}
+        {sub && <span style={{ color: chipColor, opacity: 0.8, marginRight: 4 }}>{sub}</span>}
         {label}
       </span>
     </div>
@@ -363,7 +371,10 @@ export default function CalendarGrid({
                             />
                           );
                         }
-                        const colors = CATEGORY_COLORS[item.category] || CATEGORY_COLORS['기타'];
+                        const isArchived = item.status === 'archived';
+                        const colors = isArchived
+                          ? { border: '#9ca3af' }
+                          : (CATEGORY_COLORS[item.category] || CATEGORY_COLORS['기타']);
                         return (
                           <ItemChip
                             key={'dt' + item.id}
@@ -371,7 +382,8 @@ export default function CalendarGrid({
                             label={item.title}
                             sub={item.task_time ? item.task_time.slice(0, 5) : undefined}
                             onClick={() => onTaskClick?.(item)}
-                            dragItem={{ type: 'task', item, sourceYmd: item.task_date || item.due_date }}
+                            dragItem={isArchived ? null : { type: 'task', item, sourceYmd: item.task_date || item.due_date }}
+                            archived={isArchived}
                           />
                         );
                       })}

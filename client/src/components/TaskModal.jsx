@@ -244,9 +244,12 @@ export default function TaskModal({
   task, users, currentUser,
   onClose, onUpdate, onDelete, onAddComment, getComments, projects = [],
 }) {
-  const initEnd = task.task_time && task.duration
-    ? minToTime(timeToMin(task.task_time) + (task.duration || 60))
-    : '';
+  const initEnd = (() => {
+    if (!task.task_time) return '';
+    const endFromDuration = minToTime(timeToMin(task.task_time) + (task.duration || 60));
+    // duration으로 계산한 end가 start보다 이르면(자정 넘김 등) +1시간으로 보정
+    return endFromDuration > task.task_time ? endFromDuration : minToTime(timeToMin(task.task_time) + 60);
+  })();
 
   const [form, setForm] = useState({
     title:       task.title,
@@ -305,21 +308,17 @@ export default function TaskModal({
   });
 
   const handleStartTime = (v) => {
-    const dur = calcDuration(v, form.end_time);
-    // 시작시간이 종료시간보다 늦으면 종료시간도 1시간 뒤로 맞춤
-    const newEnd = dur < 0
-      ? minToTime(timeToMin(v) + 60)
-      : form.end_time;
-    const newDur = dur < 0 ? 60 : dur;
+    const rawDiff = form.end_time ? timeToMin(form.end_time) - timeToMin(v) : -1;
+    const newEnd  = rawDiff <= 0 ? minToTime(timeToMin(v) + 60) : form.end_time;
+    const newDur  = rawDiff > 0 ? rawDiff : 60;
     setForm(f => ({ ...f, task_time: v, end_time: newEnd, duration: newDur }));
   };
   const handleEndTime = (v) => {
-    // 종료시간이 시작시간보다 이르면 무시 (시작시간으로 고정)
-    if (form.task_time && v < form.task_time) {
+    if (form.task_time && v <= form.task_time) {
       return setForm(f => ({ ...f, end_time: f.task_time, duration: 0 }));
     }
-    const dur = calcDuration(form.task_time, v);
-    setForm(f => ({ ...f, end_time: v, duration: dur }));
+    const dur = timeToMin(v) - timeToMin(form.task_time);
+    setForm(f => ({ ...f, end_time: v, duration: dur > 0 ? dur : 0 }));
   };
 
   const handleSave = async () => {
@@ -351,9 +350,12 @@ export default function TaskModal({
   };
 
   const catColors = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['기타'];
-  const durLabel = form.duration >= 60
-    ? `${Math.floor(form.duration / 60)}시간${form.duration % 60 ? ` ${form.duration % 60}분` : ''}`
-    : `${form.duration}분`;
+  const actualDur = (form.task_time && form.end_time)
+    ? Math.max(0, timeToMin(form.end_time) - timeToMin(form.task_time))
+    : form.duration;
+  const durLabel = actualDur >= 60
+    ? `${Math.floor(actualDur / 60)}시간${actualDur % 60 ? ` ${actualDur % 60}분` : ''}`
+    : `${actualDur}분`;
 
   return (
     <div

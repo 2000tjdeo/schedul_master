@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { STITCH, ACCENT } from '../../utils/colorMap.js';
 import { summarizeSchedule } from '../../utils/gemini.js';
+import ProjectFeed from '../Notes/ProjectFeed.jsx';
 
 export default function FocusPanel({
   selectedDate,
@@ -11,9 +12,12 @@ export default function FocusPanel({
   selectedProject = null,
   projectStats = null,
   onClearProject,
+  users = [],
+  currentUser = null,
 }) {
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [focusTab, setFocusTab] = useState('schedule'); // 'schedule' | 'feed'
 
   const handleAISummary = async () => {
     setAiLoading(true);
@@ -56,8 +60,54 @@ export default function FocusPanel({
       overflowY: 'auto',
       borderLeft: '1px solid #f1f1f1',
     }}>
-      {/* 프로젝트 대시보드 */}
-      {selectedProject && projectStats && (
+      {/* 프로젝트 선택 시 탭 전환 */}
+      {selectedProject && (
+        <div style={{
+          display: 'flex', gap: 4,
+          background: '#f1f5f9', borderRadius: 10, padding: 3, flexShrink: 0,
+        }}>
+          {[
+            { id: 'schedule', label: '일정', icon: 'calendar_today' },
+            { id: 'feed',     label: '피드', icon: 'feed' },
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setFocusTab(t.id)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                background: focusTab === t.id ? '#fff' : 'transparent',
+                fontSize: 12, fontWeight: focusTab === t.id ? 700 : 500,
+                color: focusTab === t.id ? '#1a1c1c' : '#9ca3af',
+                boxShadow: focusTab === t.id ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s',
+                fontFamily: 'Manrope, sans-serif',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: focusTab === t.id ? "'FILL' 1" : "'FILL' 0" }}>{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 피드 탭 */}
+      {selectedProject && focusTab === 'feed' && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <ProjectFeed
+            projectId={selectedProject.id}
+            projectName={selectedProject.name || selectedProject.title}
+            users={users}
+            tasks={tasks}
+            currentUser={currentUser}
+          />
+        </div>
+      )}
+
+      {/* 일정 탭 — 프로젝트 미선택 시 항상 표시 */}
+      {(!selectedProject || focusTab === 'schedule') && (
+        <>
+          {selectedProject && projectStats && (
         <div style={{
           borderRadius: 16, overflow: 'hidden',
           background: ACCENT,
@@ -168,6 +218,7 @@ export default function FocusPanel({
           <p style={{ fontSize: 12, color: '#555', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{aiSummary}</p>
         )}
       </div>
+      </>)}
 
     </aside>
   );

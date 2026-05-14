@@ -201,6 +201,22 @@ export default function AdminPage({ currentUser, onClose }) {
     fetchProjects();
   };
 
+  // 프로젝트 종료 / 재개
+  const handleCompleteProject = async (p) => {
+    const isCompleted = p.status === 'completed';
+    if (!isCompleted && !confirm(`프로젝트 "${p.name}"을 종료하시겠습니까?\n캘린더에는 유지되고 사이드바 목록에서 숨겨집니다.`)) return;
+    const payload = isCompleted
+      ? { status: 'active', completed_at: null }
+      : { status: 'completed', completed_at: new Date().toISOString() };
+    const { error } = await supabase.from('sm_projects').update(payload).eq('id', p.id);
+    if (!error) {
+      showToast(isCompleted ? `프로젝트 "${p.name}" 재개` : `프로젝트 "${p.name}" 종료됨`, isCompleted ? 'success' : 'info');
+      fetchProjects();
+    } else {
+      showToast('상태 변경 실패: ' + error.message, 'error');
+    }
+  };
+
   // 칩 추가
   const handleAddChip = async () => {
     if (!newChip.label.trim()) return;
@@ -546,11 +562,23 @@ export default function AdminPage({ currentUser, onClose }) {
                           </>
                         ) : (
                           <>
+                            {p.status === 'completed' && (
+                              <span style={{
+                                fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 10,
+                                background: '#f1f5f9', color: '#64748b',
+                              }}>종료됨</span>
+                            )}
                             <button onClick={() => handleEditProject(p)} style={{
                               padding: '6px 10px', borderRadius: 6, border: 'none',
                               background: '#e0e7ff', color: '#3730a3', fontSize: 12, fontWeight: 600,
                               cursor: 'pointer',
                             }}>수정</button>
+                            <button onClick={() => handleCompleteProject(p)} style={{
+                              padding: '6px 10px', borderRadius: 6, border: 'none',
+                              background: p.status === 'completed' ? '#d1fae5' : '#fef9c3',
+                              color: p.status === 'completed' ? '#065f46' : '#713f12',
+                              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            }}>{p.status === 'completed' ? '재개' : '종료'}</button>
                             <button onClick={() => handleDeleteProject(p.id, p.name)} style={{
                               padding: '6px 10px', borderRadius: 6, border: 'none',
                               background: '#fee2e2', color: '#dc2626', fontSize: 12, fontWeight: 600,

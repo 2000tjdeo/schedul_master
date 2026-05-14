@@ -25,6 +25,9 @@ import TimelineCalendar from './components/Calendar/TimelineCalendar.jsx';
 import KanbanBoard     from './components/Kanban/KanbanBoard.jsx';
 import MobileKanbanBoard from './components/Kanban/MobileKanbanBoard.jsx';
 
+// Archive
+import ArchiveView from './components/Archive/ArchiveView.jsx';
+
 // ── Login Modal ──────────────────────────────────────────────────────────────
 function LoginModal({ onLogin }) {
   const [name, setName] = useState('');
@@ -263,20 +266,27 @@ export default function App() {
   });
 
   const allTasks = tasks || [];
-  
+
   // 'archived' 상태인 것과 그렇지 않은 것을 분리
   const activeTasks = allTasks.filter(t => t.status !== 'archived');
   const archivedTasks = allTasks.filter(t => t.status === 'archived');
 
-  // 현재 탭이 'archived'면 아카이브된 것들만, 아니면 활성 태스크들만 대상으로 필터링
-  const sourceTasks = activeTab === 'archived' ? archivedTasks : activeTasks;
-
-  const filteredTasks = sourceTasks.filter(task => {
+  // Board/Tasks/Timeline용: 활성 태스크만 (archived 제외)
+  const filteredTasks = activeTasks.filter(task => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       if (!task.title.toLowerCase().includes(q) && !(task.description || '').toLowerCase().includes(q)) return false;
     }
-    // 프로젝트 컨텍스트 필터
+    if (selectedProjectId && task.project_id !== selectedProjectId) return false;
+    return true;
+  });
+
+  // Calendar용: archived 포함 전체 (캘린더에는 완료 항목도 잔류)
+  const calendarTasks = allTasks.filter(task => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (!task.title.toLowerCase().includes(q) && !(task.description || '').toLowerCase().includes(q)) return false;
+    }
     if (selectedProjectId && task.project_id !== selectedProjectId) return false;
     return true;
   });
@@ -337,7 +347,7 @@ export default function App() {
     );
   }
 
-  const calProps = { tasks: filteredTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop };
+  const calProps = { tasks: calendarTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop };
   const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask, projects: projects };
 
   return (
@@ -518,13 +528,12 @@ export default function App() {
               )}
               {activeTab === 'tasks' && <TaskListView tasks={filteredTasks} onTaskClick={setSelectedTask} />}
               {activeTab === 'archived' && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                   <div style={{ padding: '0 24px 16px' }}>
-                     <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1a1c1c' }}>Archive Storage</h2>
-                     <p style={{ fontSize: 13, color: '#71717a' }}>보관된 모든 항목들을 관리합니다. 필요 시 상세화면에서 상태를 변경하여 복구할 수 있습니다.</p>
-                   </div>
-                   <TaskListView tasks={filteredTasks} onTaskClick={setSelectedTask} />
-                </div>
+                <ArchiveView
+                  tasks={archivedTasks}
+                  projects={projects}
+                  onTaskClick={setSelectedTask}
+                  onRestoreTask={(id) => handleUpdateTask(id, { status: 'done' })}
+                />
               )}
             </div>
 
@@ -539,7 +548,7 @@ export default function App() {
           {/* Desktop View: FocusPanel is persistent on the right */}
           {isDesktop && activeTab === 'calendar' && (
             <div style={{ width: 320, flexShrink: 0, height: '100%', overflowY: 'auto', background: STITCH.side }}>
-              <FocusPanel selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} selectedProject={selectedProject} projectStats={projectStats} onClearProject={() => setSelectedProjectId(null)} />
+              <FocusPanel selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} selectedProject={selectedProject} projectStats={projectStats} onClearProject={() => setSelectedProjectId(null)} users={users} currentUser={currentUser} />
             </div>
           )}
 
