@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { DateDrum, TimeDrum, DrumPickerStyles } from './ui/DrumPicker.jsx';
+import { DateDrum, DrumPickerStyles } from './ui/DrumPicker.jsx';
 import useSpeech from '../hooks/useSpeech.js';
 import { parseNL } from '../utils/nlParser.js';
 import { parseNLWithGemini, generateDescription, suggestTime } from '../utils/gemini.js';
