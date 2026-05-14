@@ -67,7 +67,7 @@ function TaskBar({ task, isFirst, isLast, onTaskClick, hovered, onEnter, onLeave
             fontFamily: 'Manrope, sans-serif',
             textDecoration: isArchived ? 'line-through' : 'none',
           }}>
-            {task.title}
+            {task.title}{task.status === 'in_progress' ? ' (진행중)' : task.status === 'done' ? ' (완료)' : ''}
           </span>
         )}
       </div>
@@ -379,7 +379,7 @@ export default function CalendarGrid({
                           <ItemChip
                             key={'dt' + item.id}
                             color={colors.border}
-                            label={item.title}
+                            label={item.title + (item.status === 'in_progress' ? ' (진행중)' : item.status === 'done' ? ' (완료)' : '')}
                             sub={item.task_time ? item.task_time.slice(0, 5) : undefined}
                             onClick={() => onTaskClick?.(item)}
                             dragItem={isArchived ? null : { type: 'task', item, sourceYmd: item.task_date || item.due_date }}
