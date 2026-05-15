@@ -105,9 +105,13 @@ export default function FocusPanel({
     setWeeklyLoading(false);
   };
 
+  const FALLBACK_TEXTS = ['요약할 일정이 없습니다.', '이번 주 데이터가 부족합니다.'];
+
   const handleSaveNote = async () => {
     const summary = briefingTab === 'today' ? todaySummary : weeklySummary;
     if (!summary || saving) return;
+    // 폴백 텍스트는 저장 차단
+    if (FALLBACK_TEXTS.includes(summary.trim())) return;
     const pid = selectedProject?.id || saveProjectId;
     if (!pid) {
       setShowProjectPicker(true);
@@ -115,13 +119,13 @@ export default function FocusPanel({
     }
     setSaving(true);
     setShowProjectPicker(false);
-    const title = briefingTab === 'today'
+    const header = briefingTab === 'today'
       ? `AI 일일 브리핑 · ${dateStr}`
       : `AI 주간 요약 · ${week.start} ~ ${week.end}`;
+    // title 없이 content에 헤더 포함 — NoteForm progress 타입에 title 입력란 없음
     await addNote({
       type: 'progress',
-      title,
-      content: summary,
+      content: `[${header}]\n\n${summary}`,
       project_id: pid,
       from_user_id: currentUser?.id || null,
     });
