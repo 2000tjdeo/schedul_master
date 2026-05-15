@@ -2,14 +2,77 @@ import React, { useState, useMemo } from 'react';
 import { format, addDays, startOfWeek, eachDayOfInterval, isToday, differenceInDays, parseISO } from 'date-fns';
 import { ACCENT, CATEGORY_COLORS } from '../../utils/colorMap.js';
 
-// ── Milestone Calendar Component ────────────────────────────────────────────────
+// ── Milestone Calendar (Bar Type) ───────────────────────────────────────────────
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+const STATUS_LABEL = { todo: '할 일', in_progress: '진행 중', done: '완료' };
+const STATUS_COLOR = { todo: '#94a3b8', in_progress: '#f59e0b', done: '#10b981' };
+const BAR_H = 18;
+const MAX_BARS = 3;
+
+function assignLanes(bars) {
+  const lanes = [];
+  bars.forEach(bar => {
+    let placed = false;
+    for (let i = 0; i < lanes.length; i++) {
+      const last = lanes[i][lanes[i].length - 1];
+      if (last.endCol < bar.startCol) {
+        lanes[i].push(bar);
+        bar.lane = i;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      bar.lane = lanes.length;
+      lanes.push([bar]);
+    }
+  });
+  return lanes.length;
+}
+
+function getBarsForWeek(items, week) {
+  const weekDates = week.map(d => d.date).filter(Boolean);
+  if (!weekDates.length) return [];
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[weekDates.length - 1];
+
+  const bars = [];
+  items.forEach(item => {
+    const s = item.task_date || item.due_date || item.date;
+    const e = item.due_date || item.task_date || item.date;
+    if (!s) return;
+    const taskStart = s <= e ? s : e;
+    const taskEnd = s <= e ? e : s;
+    if (taskEnd < weekStart || taskStart > weekEnd) return;
+
+    const clippedStart = taskStart < weekStart ? weekStart : taskStart;
+    const clippedEnd = taskEnd > weekEnd ? weekEnd : taskEnd;
+
+    const startCol = week.findIndex(d => d.date === clippedStart);
+    const endCol = week.findIndex(d => d.date === clippedEnd);
+    if (startCol === -1 || endCol === -1) return;
+
+    bars.push({
+      item, startCol, endCol,
+      color: item.color || item._projColor || ACCENT,
+      label: item.title,
+      isStart: clippedStart === taskStart,
+      isEnd: clippedEnd === taskEnd,
+      lane: 0,
+    });
+  });
+
+  bars.sort((a, b) => a.startCol - b.startCol || (b.endCol - b.startCol) - (a.endCol - a.startCol));
+  assignLanes(bars);
+  return bars;
+}
 
 function MilestoneCalendar({ tasks = [], appointments = [], projects = [], onTaskClick, onApptClick }) {
   const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
-  const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(todayStr);
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
@@ -27,27 +90,21 @@ function MilestoneCalendar({ tasks = [], appointments = [], projects = [], onTas
   const prevLastDay = new Date(viewYear, viewMonth, 0).getDate();
   for (let i = startOffset - 1; i >= 0; i--) days.push({ day: prevLastDay - i, current: false, date: null });
   for (let d = 1; d <= lastDay.getDate(); d++) {
-    const dt = new Date(viewYear, viewMonth, d);
-    days.push({ day: d, current: true, date: dt.toISOString().slice(0, 10) });
+    days.push({ day: d, current: true, date: new Date(viewYear, viewMonth, d).toISOString().slice(0, 10) });
   }
+  // pad to full rows
+  while (days.length % 7 !== 0) days.push({ day: null, current: false, date: null });
 
-  const getProjectColor = (projectId) => {
-    const p = projects.find(p => p.id === projectId);
-    return p?.color || ACCENT;
-  };
+  const weeks = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
 
-  const getDotsForDay = (ymd) => {
-    if (!ymd) return [];
-    const dots = [];
-    tasks.forEach(t => {
-      const due = t.due_date || t.task_date;
-      if (due === ymd) dots.push({ color: getProjectColor(t.project_id), label: t.title });
-    });
-    appointments.forEach(a => {
-      if (a.date === ymd) dots.push({ color: a.color || '#8b5cf6', label: a.title });
-    });
-    return dots.slice(0, 3);
-  };
+  // 태스크에 프로젝트 색상 주입
+  const coloredTasks = tasks.map(t => {
+    const proj = projects.find(p => p.id === t.project_id);
+    return { ...t, _projColor: proj?.color || ACCENT };
+  });
+  const coloredAppts = appointments.map(a => ({ ...a, _projColor: a.color || '#8b5cf6' }));
+  const allItems = [...coloredAppts, ...coloredTasks];
 
   const selectedTasks = tasks.filter(t => {
     const s = t.task_date || t.due_date;
@@ -59,93 +116,121 @@ function MilestoneCalendar({ tasks = [], appointments = [], projects = [], onTas
   const selDateObj = selectedDate ? new Date(selectedDate + 'T00:00:00') : null;
   const selDateStr = selDateObj?.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
 
-  const STATUS_LABEL = { todo: '할 일', in_progress: '진행 중', done: '완료' };
-  const STATUS_COLOR = { todo: '#94a3b8', in_progress: '#f59e0b', done: '#10b981' };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* 달력 */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f1f1', padding: '20px 16px' }}>
         {/* 월 네비게이션 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <button onClick={prevMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', padding: '4px 8px' }}>‹</button>
+          <button onClick={prevMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', padding: '4px 10px' }}>‹</button>
           <span style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', fontFamily: 'Manrope' }}>
             {viewYear}년 {viewMonth + 1}월
           </span>
-          <button onClick={nextMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', padding: '4px 8px' }}>›</button>
+          <button onClick={nextMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', padding: '4px 10px' }}>›</button>
         </div>
 
         {/* 요일 헤더 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 4 }}>
           {DOW.map((d, i) => (
-            <div key={d} style={{
-              textAlign: 'center', fontSize: 11, fontWeight: 800,
-              color: i === 0 ? '#f87171' : i === 6 ? '#60a5fa' : '#9ca3af',
-            }}>{d}</div>
+            <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, paddingBottom: 6,
+              color: i === 0 ? '#f87171' : i === 6 ? '#60a5fa' : '#9ca3af' }}>
+              {d}
+            </div>
           ))}
         </div>
 
-        {/* 날짜 그리드 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px 0' }}>
-          {days.map((day, i) => {
-            const col = i % 7;
-            const isSel = day.date === selectedDate;
-            const isTd = day.date && day.date === now.toISOString().slice(0, 10);
-            const dots = getDotsForDay(day.date);
-            const hasDue = dots.length > 0;
-            const dowColor = col === 0 ? '#f87171' : col === 6 ? '#60a5fa' : '#4b5563';
+        {/* 주별 렌더링 */}
+        {weeks.map((week, wi) => {
+          const bars = getBarsForWeek(allItems, week);
+          const maxLane = bars.reduce((m, b) => Math.max(m, b.lane), -1);
+          const laneCount = Math.min(maxLane + 1, MAX_BARS);
 
-            return (
-              <div
-                key={i}
-                onClick={() => day.date && setSelectedDate(day.date)}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: 6, cursor: day.date ? 'pointer' : 'default' }}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, fontWeight: (isSel || isTd || hasDue) ? 800 : 400,
-                  background: isTd ? '#1a1c1c' : isSel ? '#f1f5f9' : 'transparent',
-                  color: isTd ? '#fff' : day.current ? (isSel ? '#1a1c1c' : dowColor) : '#d1d5db',
-                  border: isSel && !isTd ? '2px solid #1a1c1c' : '2px solid transparent',
-                  transition: 'all 0.15s',
-                  fontFamily: 'Manrope',
-                }}>
-                  {day.day}
-                </div>
-                {/* 마감 도트 */}
-                <div style={{ display: 'flex', gap: 2, marginTop: 2, height: 6 }}>
-                  {dots.map((dot, di) => (
-                    <div key={di} style={{ width: 5, height: 5, borderRadius: '50%', background: isTd ? 'rgba(255,255,255,0.8)' : dot.color }} />
+          return (
+            <div key={wi} style={{ marginBottom: 4 }}>
+              {/* 날짜 숫자 행 */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                {week.map((day, di) => {
+                  const isSel = day.date === selectedDate;
+                  const isTd = day.date === todayStr;
+                  const dowColor = di === 0 ? '#f87171' : di === 6 ? '#60a5fa' : '#4b5563';
+                  return (
+                    <div
+                      key={di}
+                      onClick={() => day.date && setSelectedDate(day.date)}
+                      style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 34, cursor: day.date ? 'pointer' : 'default' }}
+                    >
+                      <div style={{
+                        width: 30, height: 30, borderRadius: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: (isSel || isTd) ? 800 : 400,
+                        background: isTd ? '#1a1c1c' : isSel ? '#f1f5f9' : 'transparent',
+                        color: isTd ? '#fff' : day.current ? (isSel ? '#1a1c1c' : dowColor) : '#d1d5db',
+                        border: isSel && !isTd ? '2px solid #1a1c1c' : '2px solid transparent',
+                        fontFamily: 'Manrope', transition: 'all 0.15s',
+                      }}>
+                        {day.day}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 바 레인들 */}
+              {laneCount > 0 && (
+                <div style={{ position: 'relative', paddingBottom: 4 }}>
+                  {Array.from({ length: laneCount }, (_, li) => (
+                    <div key={li} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', height: BAR_H + 2, marginBottom: 2 }}>
+                      {bars.filter(b => b.lane === li).map((bar, bi) => {
+                        const span = bar.endCol - bar.startCol + 1;
+                        const isAppt = !!bar.item.date && !bar.item.task_date && !bar.item.due_date;
+                        return (
+                          <div
+                            key={bi}
+                            onClick={() => isAppt ? onApptClick?.(bar.item) : onTaskClick?.(bar.item)}
+                            title={bar.label}
+                            style={{
+                              gridColumn: `${bar.startCol + 1} / span ${span}`,
+                              height: BAR_H,
+                              background: bar.color + 'cc',
+                              borderRadius: `${bar.isStart ? 6 : 0}px ${bar.isEnd ? 6 : 0}px ${bar.isEnd ? 6 : 0}px ${bar.isStart ? 6 : 0}px`,
+                              display: 'flex', alignItems: 'center',
+                              paddingLeft: bar.isStart ? 6 : 2,
+                              paddingRight: bar.isEnd ? 6 : 2,
+                              cursor: 'pointer', overflow: 'hidden',
+                              marginLeft: bar.isStart ? 1 : 0,
+                              marginRight: bar.isEnd ? 1 : 0,
+                              borderLeft: !bar.isStart ? `2px solid ${bar.color}` : 'none',
+                            }}
+                          >
+                            {bar.isStart && (
+                              <span style={{ fontSize: 10, color: '#fff', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {bar.label}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   ))}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* 선택일 마일스톤 목록 */}
+      {/* 선택일 상세 목록 */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f1f1', padding: 16 }}>
         <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1a1c1c', margin: '0 0 12px', fontFamily: 'Manrope' }}>
           {selDateStr} 일정
         </h4>
-
         {selectedAppts.length === 0 && selectedTasks.length === 0 ? (
           <p style={{ fontSize: 12, color: '#d1d5db', textAlign: 'center', padding: '20px 0', margin: 0 }}>이 날 일정이 없습니다.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* 약속 */}
             {selectedAppts.map(a => (
-              <div
-                key={a.id}
-                onClick={() => onApptClick?.(a)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                  background: '#f5f3ff', border: '1px solid #ede9fe',
-                  transition: 'all 0.15s',
-                }}
+              <div key={a.id} onClick={() => onApptClick?.(a)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', background: '#f5f3ff', border: '1px solid #ede9fe', transition: 'all 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
                 onMouseLeave={e => e.currentTarget.style.background = '#f5f3ff'}
               >
@@ -157,38 +242,26 @@ function MilestoneCalendar({ tasks = [], appointments = [], projects = [], onTas
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', background: '#ede9fe', padding: '2px 7px', borderRadius: 6, flexShrink: 0 }}>약속</span>
               </div>
             ))}
-
-            {/* 업무 — 프로젝트별 그룹 */}
             {selectedTasks.map(t => {
               const proj = projects.find(p => p.id === t.project_id);
               const pColor = proj?.color || ACCENT;
               const isDue = t.due_date === selectedDate;
               return (
-                <div
-                  key={t.id}
-                  onClick={() => onTaskClick?.(t)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                    background: '#fafafa', border: `1px solid #f1f1f1`,
-                    borderLeft: `3px solid ${pColor}`,
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
+                <div key={t.id} onClick={() => onTaskClick?.(t)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', background: '#fafafa', borderLeft: `3px solid ${pColor}`, border: `1px solid #f1f1f1`, borderLeftWidth: 3, transition: 'all 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f5f5f5'}
                   onMouseLeave={e => e.currentTarget.style.background = '#fafafa'}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                      {proj && <span style={{ fontSize: 10, fontWeight: 700, color: pColor, flexShrink: 0 }}>{proj.name || proj.title}</span>}
-                      {isDue && <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', background: '#fee2e2', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>마감</span>}
+                      {proj && <span style={{ fontSize: 10, fontWeight: 700, color: pColor }}>{proj.name || proj.title}</span>}
+                      {isDue && <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', background: '#fee2e2', padding: '1px 5px', borderRadius: 4 }}>마감</span>}
                     </div>
                     <p style={{ fontSize: 12, fontWeight: 700, color: '#1a1c1c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
                   </div>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, flexShrink: 0,
-                    background: STATUS_COLOR[t.status] + '22',
-                    color: STATUS_COLOR[t.status],
-                  }}>{STATUS_LABEL[t.status] || t.status}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, flexShrink: 0, background: STATUS_COLOR[t.status] + '22', color: STATUS_COLOR[t.status] }}>
+                    {STATUS_LABEL[t.status] || t.status}
+                  </span>
                 </div>
               );
             })}
