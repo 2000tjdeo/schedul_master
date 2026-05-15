@@ -81,6 +81,7 @@ export default function AdminPage({ currentUser, onClose }) {
   const [pinModal,    setPinModal]    = useState(false);
   const [pinInput,    setPinInput]    = useState('');
   const [pinMsg,      setPinMsg]      = useState('');
+  const [pinTarget,   setPinTarget]   = useState(null); // { id, name } — null이면 자기 자신
 
   const baseUrl = window.location.origin;
 
@@ -239,11 +240,12 @@ export default function AdminPage({ currentUser, onClose }) {
     fetchChips();
   };
 
-  // PIN 설정
+  // PIN 설정 (자기 자신 또는 관리자가 타인 지정)
   const handleSetPin = async () => {
     if (!/^\d{4,6}$/.test(pinInput)) { setPinMsg('4~6자리 숫자를 입력하세요'); return; }
-    const { error } = await supabase.from('sm_users').update({ pin: pinInput }).eq('id', currentUser?.id);
-    if (!error) { setPinMsg('PIN이 설정되었습니다'); setPinInput(''); setTimeout(() => setPinModal(false), 1200); }
+    const targetId = pinTarget ? pinTarget.id : currentUser?.id;
+    const { error } = await supabase.from('sm_users').update({ pin: pinInput }).eq('id', targetId);
+    if (!error) { setPinMsg('PIN이 설정되었습니다'); setPinInput(''); setTimeout(() => { setPinModal(false); setPinTarget(null); }, 1200); }
     else { setPinMsg(error.message); }
   };
 
@@ -327,6 +329,10 @@ export default function AdminPage({ currentUser, onClose }) {
                       <option value="member">구성원</option>
                       <option value="admin">관리자</option>
                     </select>
+                    <button onClick={() => { setPinTarget({ id: m.id, name: m.name }); setPinModal(true); setPinMsg(''); setPinInput(''); }} style={{
+                      border: 'none', background: 'none', cursor: 'pointer',
+                      color: '#6366f1', fontSize: 12, padding: '4px 6px', fontWeight: 600,
+                    }}>PIN</button>
                     {m.id !== currentUser?.id && (
                       <button onClick={() => handleDeleteMember(m.id)} style={{
                         border: 'none', background: 'none', cursor: 'pointer',
@@ -723,7 +729,9 @@ export default function AdminPage({ currentUser, onClose }) {
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }}>
             <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700 }}>PIN 설정</h3>
-            <p style={{ fontSize: 13, color: '#888', margin: '0 0 20px' }}>4~6자리 숫자를 입력하세요</p>
+            <p style={{ fontSize: 13, color: '#888', margin: '0 0 20px' }}>
+              {pinTarget ? `${pinTarget.name}의 PIN` : '내 PIN'} · 4~6자리 숫자
+            </p>
             <input
               type="password"
               inputMode="numeric"
