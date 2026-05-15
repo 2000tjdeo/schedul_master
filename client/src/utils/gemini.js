@@ -60,7 +60,6 @@ export async function parseNLWithGemini(text) {
 }
 
 // ── 2. 일정 요약 생성 ─────────────────────────────────────────────────────────
-// tasks, appointments 배열 받아서 한국어 요약 텍스트 반환
 export async function summarizeSchedule(tasks, appointments, dateStr) {
   if (!tasks?.length && !appointments?.length) return null;
 
@@ -80,6 +79,44 @@ ${taskList || '없음'}
 
 약속/일정:
 ${apptList || '없음'}`;
+
+  return await callGemini(prompt, false);
+}
+
+// ── 2-1. 주간 프로젝트 요약 ────────────────────────────────────────────────────
+export async function weeklyProjectSummary(tasks, appointments, projects, weekStart, weekEnd) {
+  if (!tasks?.length && !appointments?.length) return null;
+
+  const projectGroups = {};
+  tasks.forEach(t => {
+    const pid = t.project_id || '__none__';
+    if (!projectGroups[pid]) projectGroups[pid] = { todo: 0, in_progress: 0, done: 0 };
+    if (t.status === 'done') projectGroups[pid].done++;
+    else if (t.status === 'in_progress') projectGroups[pid].in_progress++;
+    else projectGroups[pid].todo++;
+  });
+
+  const projectLines = Object.entries(projectGroups).map(([pid, s]) => {
+    const proj = projects.find(p => String(p.id) === String(pid));
+    const name = proj?.name || proj?.title || '기타';
+    return `• ${name}: 완료 ${s.done} / 진행 ${s.in_progress} / 할일 ${s.todo}`;
+  }).join('\n');
+
+  const apptLines = appointments.slice(0, 10).map(a =>
+    `- ${a.date} ${a.start_time?.slice(0, 5) || ''} ${a.title}`
+  ).join('\n');
+
+  const prompt = `기간: ${weekStart} ~ ${weekEnd}
+
+프로젝트별 업무 현황:
+${projectLines || '없음'}
+
+이번 주 약속/미팅:
+${apptLines || '없음'}
+
+위 정보를 바탕으로 이번 주를 3-4문장으로 한국어로 요약해줘.
+잘 진행 중인 프로젝트, 주의가 필요한 부분, 다음 주를 위한 한 줄 조언 순으로.
+간결하고 실용적으로.`;
 
   return await callGemini(prompt, false);
 }
