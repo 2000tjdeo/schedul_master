@@ -1,7 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { ACCENT } from '../utils/colorMap.js';
+import { supabase } from '../lib/supabase.js';
+import useTaskStore from '../store/taskStore.js';
+import NoteForm from './Notes/NoteForm.jsx';
 
 const COLORS = ['#b7131a', '#48626e', '#006578', '#7c3aed', '#0ea5e9', '#059669', '#ea580c'];
+
+const UPDATE_META = {
+  progress: { label: '진행상황', color: '#0ea5e9', bg: '#eff6ff' },
+  issue:    { label: '특이사항', color: '#f97316', bg: '#fff7ed' },
+  meeting:  { label: '미팅',    color: '#8b5cf6', bg: '#f5f3ff' },
+  handoff:  { label: '인수인계', color: '#10b981', bg: '#f0fdf4' },
+};
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+  if (diff < 60)    return '방금 전';
+  if (diff < 3600)  return `${Math.floor(diff / 60)}분 전`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}일 전`;
+  return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+
+function UpdateCard({ note, currentUserId, onDelete }) {
+  const meta = UPDATE_META[note.type] || UPDATE_META.progress;
+  return (
+    <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 12px', marginBottom: 8, border: '1px solid #f1f5f9' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: note.title || note.content ? 6 : 0, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: meta.bg, color: meta.color }}>{meta.label}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{note.from_user?.name || '알 수 없음'}</span>
+        <span style={{ fontSize: 11, color: '#c4c4c4', marginLeft: 'auto' }}>{timeAgo(note.created_at)}</span>
+        {note.from_user_id === currentUserId && (
+          <button onClick={() => onDelete(note.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#d1d5db', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>✕</button>
+        )}
+      </div>
+      {note.title && <p style={{ fontSize: 13, fontWeight: 600, color: '#111', margin: '0 0 3px' }}>{note.title}</p>}
+      {note.content && <p style={{ fontSize: 13, color: '#4b5563', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{note.content}</p>}
+    </div>
+  );
+}
 
 function timeToMin(t) {
   if (!t) return 0;
@@ -40,7 +78,7 @@ const inputStyle = {
   color: '#333', boxSizing: 'border-box', fontFamily: 'inherit',
 };
 
-export default function AppointmentModal({ appt, onClose, onUpdate, onDelete, currentUser }) {
+export default function AppointmentModal({ appt, onClose, onUpdate, onDelete, currentUser, users = [], tasks = [] }) {
   const [form, setForm] = useState({
     title:      appt.title,
     date:       appt.date,
@@ -55,6 +93,37 @@ export default function AppointmentModal({ appt, onClose, onUpdate, onDelete, cu
   const [error,         setError]         = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
+  const [updates,       setUpdates]       = useState([]);
+  const [showUpdateForm, setShowUpdateForm] = useState(false);
+  const { addNote, deleteNote } = useTaskStore();
+
+  useEffect(() => {
+    supabase
+      .from('sm_notes')
+      .select('*, from_user:from_user_id(name)')
+      .eq('appointment_id', appt.id)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setUpdates(data || []));
+  }, [appt.id]);
+
+  const refreshUpdates = async () => {
+    const { data } = await supabase
+      .from('sm_notes')
+      .select('*, from_user:from_user_id(name)')
+      .eq('appointment_id', appt.id)
+      .order('created_at', { ascending: true });
+    setUpdates(data || []);
+  };
+
+  const handleSaveUpdate = async (payload) => {
+    const result = await addNote({ ...payload, appointment_id: appt.id, project_id: appt.project_id || null });
+    if (!result?.error) { setShowUpdateForm(false); refreshUpdates(); }
+  };
+
+  const handleDeleteUpdate = async (id) => {
+    await deleteNote(id);
+    setUpdates(prev => prev.filter(n => n.id !== id));
+  };
 
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose(); };
@@ -302,6 +371,50 @@ export default function AppointmentModal({ appt, onClose, onUpdate, onDelete, cu
           </div>
 
         </div>
+
+        {/* ── 업데이트 섹션 ─────────────────────────────────────── */}
+        <div style={{ padding: '0 22px 28px', borderTop: '1px solid #f0f0f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0 10px' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              업데이트{updates.length > 0 ? ` (${updates.length})` : ''}
+            </span>
+            <button
+              onClick={() => setShowUpdateForm(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '6px 12px', borderRadius: 8, border: 'none',
+                background: showUpdateForm ? '#f1f5f9' : form.color,
+                color: showUpdateForm ? '#555' : '#fff',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all 0.15s',
+              }}
+            >
+              {showUpdateForm ? '취소' : '+ 업데이트 추가'}
+            </button>
+          </div>
+
+          {showUpdateForm && (
+            <div style={{ marginBottom: 12 }}>
+              <NoteForm
+                projectId={appt.project_id}
+                users={users}
+                tasks={tasks.filter(t => !appt.project_id || t.project_id === appt.project_id)}
+                currentUser={currentUser}
+                onSave={handleSaveUpdate}
+                onCancel={() => setShowUpdateForm(false)}
+              />
+            </div>
+          )}
+
+          {updates.length === 0 && !showUpdateForm ? (
+            <p style={{ fontSize: 13, color: '#c4c4c4', textAlign: 'center', padding: '10px 0' }}>아직 업데이트가 없습니다</p>
+          ) : (
+            updates.map(note => (
+              <UpdateCard key={note.id} note={note} currentUserId={currentUser?.id} onDelete={handleDeleteUpdate} />
+            ))
+          )}
+        </div>
+
         </div>{/* end scroll */}
       </div>
     </div>
