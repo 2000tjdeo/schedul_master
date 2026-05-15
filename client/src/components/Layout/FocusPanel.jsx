@@ -105,13 +105,9 @@ export default function FocusPanel({
     setWeeklyLoading(false);
   };
 
-  const FALLBACK_TEXTS = ['요약할 일정이 없습니다.', '이번 주 데이터가 부족합니다.'];
-
   const handleSaveNote = async () => {
     const summary = briefingTab === 'today' ? todaySummary : weeklySummary;
     if (!summary || saving) return;
-    // 폴백 텍스트는 저장 차단
-    if (FALLBACK_TEXTS.includes(summary.trim())) return;
     const pid = selectedProject?.id || saveProjectId;
     if (!pid) {
       setShowProjectPicker(true);
@@ -274,7 +270,7 @@ export default function FocusPanel({
                 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 12 }}>bookmark</span>
-                {saving ? '저장 중...' : '노트 저장'}
+                <span style={{ whiteSpace: 'nowrap' }}>{saving ? '저장 중...' : '노트 저장'}</span>
               </button>
             )}
             <button
