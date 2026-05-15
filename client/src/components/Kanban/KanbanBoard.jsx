@@ -47,13 +47,21 @@ export default function KanbanBoard({ tasks, onTaskClick, onMoveTask, onCreateTa
   };
 
   return (
-    <div>
-      <ProjectFilterPills 
-        projects={projects} 
-        selectedProjectIds={selectedProjectIds} 
-        onProjectToggle={onProjectToggle} 
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 0 }}>
+      {/* Header */}
+      <div style={{ padding: '0 0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', fontFamily: 'Manrope, sans-serif', margin: 0 }}>Board</h2>
+          <p style={{ fontSize: 13, color: '#9ca3af', margin: '2px 0 0', fontWeight: 500 }}>할 일 · 진행 중 · 완료 · 칸반 방식으로 업무를 관리하세요</p>
+        </div>
+      </div>
+
+      <ProjectFilterPills
+        projects={projects}
+        selectedProjectIds={selectedProjectIds}
+        onProjectToggle={onProjectToggle}
       />
-      <div style={{ display: 'flex', gap: 12, height: '100%', overflowX: 'auto', paddingBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 12, flex: 1, overflowX: 'auto', paddingBottom: 8 }}>
         {COLUMNS.map(col => (
           <KanbanColumn
             key={col}
