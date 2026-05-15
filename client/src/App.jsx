@@ -738,7 +738,7 @@ export default function App() {
         </button>
       )}
 
-      {selectedAppt && <AppointmentModal appt={selectedAppt} currentUser={currentUser} onClose={() => setSelectedAppt(null)} onUpdate={async (id, data) => { const result = await updateAppointment(id, data); if (!result?.error) setSelectedAppt(result); return result; }} onDelete={deleteAppointment} />}
+      {selectedAppt && <AppointmentModal appt={selectedAppt} currentUser={currentUser} users={users} tasks={tasks} onClose={() => setSelectedAppt(null)} onUpdate={async (id, data) => { const result = await updateAppointment(id, data); if (!result?.error) setSelectedAppt(result); return result; }} onDelete={deleteAppointment} />}
       {selectedTask && <TaskModal task={selectedTask} users={users} currentUser={currentUser} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onAddComment={handleAddComment} getComments={getComments} projects={projects} />}
       {showCreate && <UnifiedCreateModal defaultType={createType} defaultDate={createDate} defaultStatus={createStatus} defaultProjectId={selectedProjectId} initialNLText={voiceNLText} initialParsedData={voiceParsedData} users={users} currentUser={currentUser} projects={projects} onClose={() => { setShowCreate(false); setVoiceNLText(''); setVoiceParsedData(null); }} onCreate={async (data) => { await handleCreateTask(data); fetchTasks(); }} onCreateAppt={async (data) => { await addAppointment(data); fetchAppointments(); }} />}
       {showAdmin && <AdminPage currentUser={currentUser} onClose={() => setShowAdmin(false)} />}
