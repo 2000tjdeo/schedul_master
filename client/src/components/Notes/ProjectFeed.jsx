@@ -19,17 +19,71 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 }
 
-function NoteCard({ note, tasks = [], onDelete, currentUserId }) {
+function ChecklistSection({ checklist, onToggle }) {
+  const total = checklist.length;
+  const done = checklist.filter(c => c.done).length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const allDone = done === total;
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {/* Progress bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div style={{ flex: 1, height: 5, borderRadius: 99, background: '#f1f5f9', overflow: 'hidden' }}>
+          <div style={{
+            height: '100%', borderRadius: 99,
+            background: allDone ? '#10b981' : '#0ea5e9',
+            width: `${pct}%`, transition: 'width 0.3s ease',
+          }} />
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: allDone ? '#10b981' : '#9ca3af', minWidth: 32 }}>
+          {done}/{total}
+        </span>
+      </div>
+      {/* Items */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {checklist.map(item => (
+          <div
+            key={item.id}
+            onClick={() => onToggle(item.id)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{
+                fontSize: 17, flexShrink: 0,
+                color: item.done ? '#10b981' : '#d1d5db',
+                fontVariationSettings: item.done ? "'FILL' 1" : "'FILL' 0",
+                transition: 'color 0.15s',
+              }}
+            >
+              {item.done ? 'check_circle' : 'radio_button_unchecked'}
+            </span>
+            <span style={{
+              fontSize: 13, color: item.done ? '#9ca3af' : '#374151',
+              textDecoration: item.done ? 'line-through' : 'none',
+              transition: 'all 0.15s',
+            }}>
+              {item.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NoteCard({ note, tasks = [], onDelete, onEdit, onToggleCheck, currentUserId }) {
   const meta = NOTE_META[note.type] || NOTE_META.progress;
   const linkedTask = note.task_id ? tasks.find(t => t.id === note.task_id) : null;
-  const canDelete = note.from_user_id === currentUserId;
+  const canEdit = note.from_user_id === currentUserId;
+  const canDelete = canEdit;
 
   return (
     <div style={{
       background: '#fff', borderRadius: 14, border: '1px solid #f1f5f9',
       padding: '14px 16px', display: 'flex', gap: 12,
     }}>
-      {/* Type icon */}
       <div style={{
         width: 32, height: 32, borderRadius: 10, flexShrink: 0,
         background: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -56,11 +110,24 @@ function NoteCard({ note, tasks = [], onDelete, currentUserId }) {
             </>
           )}
           <span style={{ fontSize: 11, color: '#c4c4c4', marginLeft: 'auto' }}>{timeAgo(note.created_at)}</span>
+          {canEdit && (
+            <button
+              onClick={() => onEdit(note)}
+              title="수정"
+              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#d1d5db', padding: 2, borderRadius: 6, transition: 'color 0.15s, background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.background = '#ede9fe'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#d1d5db'; e.currentTarget.style.background = 'none'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>edit</span>
+            </button>
+          )}
           {canDelete && (
             <button
               onClick={() => onDelete(note.id)}
-              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#d1d5db', padding: 0 }}
               title="삭제"
+              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#d1d5db', padding: 2, borderRadius: 6, transition: 'color 0.15s, background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#fee2e2'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#d1d5db'; e.currentTarget.style.background = 'none'; }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
             </button>
@@ -71,23 +138,25 @@ function NoteCard({ note, tasks = [], onDelete, currentUserId }) {
         {note.type === 'meeting' && (note.meeting_date || (note.attendees && note.attendees.length > 0)) && (
           <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>
             {note.meeting_date && <span>{new Date(note.meeting_date + 'T00:00:00').toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' })}</span>}
-            {note.attendees && note.attendees.length > 0 && (
-              <span> · 참석 {note.attendees.length}명</span>
-            )}
+            {note.attendees && note.attendees.length > 0 && <span> · 참석 {note.attendees.length}명</span>}
           </div>
         )}
 
-        {/* Title */}
         {note.title && (
           <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c', marginBottom: 4 }}>{note.title}</p>
         )}
-
-        {/* Content */}
         {note.content && (
           <p style={{ fontSize: 13, color: '#4b5563', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>{note.content}</p>
         )}
 
-        {/* Linked task chip */}
+        {/* Checklist */}
+        {note.checklist && note.checklist.length > 0 && (
+          <ChecklistSection
+            checklist={note.checklist}
+            onToggle={(itemId) => onToggleCheck(note.id, note.checklist, itemId)}
+          />
+        )}
+
         {linkedTask && (
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8,
@@ -104,9 +173,10 @@ function NoteCard({ note, tasks = [], onDelete, currentUserId }) {
 }
 
 export default function ProjectFeed({ projectId, projectName, users = [], tasks = [], currentUser }) {
-  const { fetchNotes, addNote, deleteNote } = useTaskStore();
+  const { fetchNotes, addNote, updateNote, deleteNote } = useTaskStore();
   const [notes, setNotes] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -127,17 +197,35 @@ export default function ProjectFeed({ projectId, projectName, users = [], tasks 
     }
   };
 
+  const handleEdit = (note) => {
+    setShowForm(false);
+    setEditingNote(note);
+  };
+
+  const handleUpdate = async (payload) => {
+    const result = await updateNote(editingNote.id, payload);
+    if (!result?.error) {
+      setEditingNote(null);
+      await load();
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!confirm('이 기록을 삭제하시겠습니까?')) return;
     await deleteNote(id);
     setNotes(prev => prev.filter(n => n.id !== id));
   };
 
+  const handleToggleCheck = async (noteId, checklist, itemId) => {
+    const updated = checklist.map(c => c.id === itemId ? { ...c, done: !c.done } : c);
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, checklist: updated } : n));
+    await updateNote(noteId, { checklist: updated });
+  };
+
   const projectTasks = tasks.filter(t => t.project_id === projectId);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Add button */}
       {!showForm ? (
         <button
           onClick={() => setShowForm(true)}
@@ -165,7 +253,6 @@ export default function ProjectFeed({ projectId, projectName, users = [], tasks 
         />
       )}
 
-      {/* Feed */}
       {loading ? (
         <div style={{ padding: '20px 0', textAlign: 'center', color: '#d1d5db', fontSize: 13 }}>불러오는 중...</div>
       ) : notes.length === 0 ? (
@@ -176,13 +263,28 @@ export default function ProjectFeed({ projectId, projectName, users = [], tasks 
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {notes.map(note => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              tasks={projectTasks}
-              onDelete={handleDelete}
-              currentUserId={currentUser?.id}
-            />
+            editingNote?.id === note.id ? (
+              <NoteForm
+                key={note.id}
+                projectId={projectId}
+                users={users}
+                tasks={projectTasks}
+                currentUser={currentUser}
+                initialData={editingNote}
+                onSave={handleUpdate}
+                onCancel={() => setEditingNote(null)}
+              />
+            ) : (
+              <NoteCard
+                key={note.id}
+                note={note}
+                tasks={projectTasks}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+                onToggleCheck={handleToggleCheck}
+                currentUserId={currentUser?.id}
+              />
+            )
           ))}
         </div>
       )}

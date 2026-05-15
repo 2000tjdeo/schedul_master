@@ -266,6 +266,20 @@ const useTaskStore = create((set, get) => ({
     }
   },
 
+  updateNote: async (id, noteData) => {
+    try {
+      const clean = { ...noteData };
+      Object.keys(clean).forEach(k => { if (clean[k] === '' || clean[k] === null || clean[k] === undefined) delete clean[k]; });
+      const { data, error } = await supabase.from('sm_notes').update(clean).eq('id', id).select('*, from_user:from_user_id(name), to_user:to_user_id(name)').single();
+      if (error) throw error;
+      get().showToast('기록이 수정되었습니다.', 'success');
+      return data;
+    } catch (err) {
+      get().showToast('수정 실패: ' + err.message, 'error');
+      return { error: err.message };
+    }
+  },
+
   deleteNote: async (id) => {
     try {
       const { error } = await supabase.from('sm_notes').delete().eq('id', id);
