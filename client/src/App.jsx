@@ -29,68 +29,215 @@ import MobileKanbanBoard from './components/Kanban/MobileKanbanBoard.jsx';
 import ArchiveView from './components/Archive/ArchiveView.jsx';
 import FeedPage from './pages/FeedPage.jsx';
 
+// ── 공통 인증 카드 래퍼 ─────────────────────────────────────────────────────
+function AuthCard({ children }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(135deg, #f5f3ff 0%, #f0f9ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 100 }}>
+      <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.12)', width: '100%', maxWidth: 360, padding: 36 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 16, background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, boxShadow: `0 8px 24px ${ACCENT}44` }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 32, fontVariationSettings: "'FILL' 1", color: '#fff' }}>calendar_month</span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#111', margin: 0, fontFamily: 'Manrope, sans-serif' }}>Schedule Master</h1>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── Login Modal ──────────────────────────────────────────────────────────────
+// step: 'name' → 'pin' (기존 유저 PIN 입력) | 'setpin' (PIN 미설정 유저 강제 설정)
 function LoginModal({ onLogin }) {
+  const [step, setStep] = useState('name');
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
-  const [needPin, setNeedPin] = useState(false);
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [foundUser, setFoundUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const createUser = useTaskStore(s => s.createUser);
 
-  const handleSubmit = async (e) => {
+  const inputStyle = { width: '100%', padding: '12px 14px', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', color: '#111', boxSizing: 'border-box' };
+  const btnStyle = (disabled) => ({ padding: '12px', borderRadius: 12, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: ACCENT, color: '#fff', fontWeight: 700, fontSize: 14, opacity: disabled ? 0.7 : 1, transition: 'all 0.15s', fontFamily: 'inherit', width: '100%' });
+
+  const handleNameSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) { setError('Please enter your name.'); return; }
+    if (!name.trim()) { setError('이름을 입력해주세요.'); return; }
     setLoading(true);
     setError('');
     try {
-      let loggedUser = null;
-      let reqPin = false;
-      let errMsg = null;
-      const { data: existingUser } = await supabase.from('sm_users').select('*').eq('name', name.trim()).maybeSingle();
-      if (existingUser) {
-        if (existingUser.pin) {
-          if (!pin) { reqPin = true; errMsg = 'Please enter PIN.'; }
-          else if (existingUser.pin !== pin) { errMsg = 'Invalid PIN.'; }
-          else { loggedUser = existingUser; }
-        } else { loggedUser = existingUser; }
-      } else {
-        const res = await createUser(name.trim());
-        if (res.error) errMsg = res.error;
-        else loggedUser = res;
+      const { data: user } = await supabase.from('sm_users').select('*').eq('name', name.trim()).maybeSingle();
+      if (!user) {
+        setError('등록되지 않은 이름입니다. 관리자에게 초대 링크를 요청하세요.');
+        setLoading(false);
+        return;
       }
-      if (reqPin) { setNeedPin(true); setError(errMsg); setLoading(false); return; }
-      if (errMsg) { setError(errMsg); setLoading(false); return; }
-      onLogin(loggedUser);
-    } catch (err) {
-      console.error(err);
-      setError('Database connection error.');
+      setFoundUser(user);
+      if (user.pin) {
+        setStep('pin');
+      } else {
+        setStep('setpin');
+      }
+    } catch {
+      setError('연결 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePinSubmit = async (e) => {
+    e.preventDefault();
+    if (!pin) { setError('PIN을 입력해주세요.'); return; }
+    setLoading(true);
+    setError('');
+    if (foundUser.pin !== pin) {
+      setError('PIN이 올바르지 않습니다.');
+      setPin('');
+      setLoading(false);
+      return;
+    }
+    const { pin: _p, ...safeUser } = foundUser;
+    onLogin(safeUser);
+    setLoading(false);
+  };
+
+  const handleSetPinSubmit = async (e) => {
+    e.preventDefault();
+    if (!/^\d{4,6}$/.test(pin)) { setError('4~6자리 숫자로 입력해주세요.'); return; }
+    if (pin !== pinConfirm) { setError('PIN이 일치하지 않습니다.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      await supabase.from('sm_users').update({ pin }).eq('id', foundUser.id);
+      const { pin: _p, ...safeUser } = { ...foundUser, pin };
+      onLogin(safeUser);
+    } catch {
+      setError('PIN 저장 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(135deg, #f5f3ff 0%, #f0f9ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 100 }}>
-      <div style={{ background: '#fff', borderRadius: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.12)', width: '100%', maxWidth: 360, padding: 36 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 16, background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, boxShadow: `0 8px 24px ${ACCENT}44` }}>
-             <span className="material-symbols-outlined" style={{ fontSize: 32, fontVariationSettings: "'FILL' 1", color: '#fff' }}>calendar_month</span>
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#111', margin: 0, fontFamily: 'Manrope, sans-serif' }}>Schedule Master</h1>
-        </div>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <input type="text" placeholder="Your Name" value={name} onChange={e => { setName(e.target.value); setNeedPin(false); setError(''); }} autoFocus maxLength={30} style={{ width: '100%', padding: '12px 14px', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', color: '#111' }} />
-          {needPin && (
-              <input type="password" inputMode="numeric" placeholder="4-6 Digit PIN" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g,'')); setError(''); }} maxLength={6} autoFocus style={{ width: '100%', padding: '12px 14px', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', color: '#111', textAlign: 'center' }} />
-          )}
+    <AuthCard>
+      {step === 'name' && (
+        <form onSubmit={handleNameSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <input type="text" placeholder="이름" value={name} onChange={e => { setName(e.target.value); setError(''); }} autoFocus maxLength={30} style={inputStyle} />
           {error && <p style={{ color: '#ef4444', fontSize: 12, margin: '-4px 0 0' }}>{error}</p>}
-          <button type="submit" disabled={loading} style={{ padding: '12px', borderRadius: 12, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', background: ACCENT, color: '#fff', fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1, transition: 'all 0.15s', fontFamily: 'inherit' }}>
-            {loading ? 'Logging in...' : 'Get Started'}
+          <button type="submit" disabled={loading} style={btnStyle(loading)}>
+            {loading ? '확인 중...' : '계속'}
           </button>
         </form>
-      </div>
-    </div>
+      )}
+
+      {step === 'pin' && (
+        <form onSubmit={handlePinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ margin: '0 0 4px', fontSize: 14, color: '#555', textAlign: 'center' }}>
+            <strong>{foundUser?.name}</strong>님, PIN을 입력하세요
+          </p>
+          <input type="password" inputMode="numeric" placeholder="PIN (4~6자리)" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }} maxLength={6} autoFocus style={{ ...inputStyle, textAlign: 'center', letterSpacing: 6 }} />
+          {error && <p style={{ color: '#ef4444', fontSize: 12, margin: '-4px 0 0' }}>{error}</p>}
+          <button type="submit" disabled={loading} style={btnStyle(loading)}>
+            {loading ? '로그인 중...' : '로그인'}
+          </button>
+          <button type="button" onClick={() => { setStep('name'); setPin(''); setError(''); setFoundUser(null); }} style={{ background: 'none', border: 'none', color: '#888', fontSize: 13, cursor: 'pointer', padding: 0 }}>
+            ← 이름 다시 입력
+          </button>
+        </form>
+      )}
+
+      {step === 'setpin' && (
+        <form onSubmit={handleSetPinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ margin: '0 0 4px', fontSize: 14, color: '#555', textAlign: 'center' }}>
+            <strong>{foundUser?.name}</strong>님, 처음 로그인입니다.<br />
+            <span style={{ fontSize: 12, color: '#888' }}>사용할 PIN을 설정해주세요</span>
+          </p>
+          <input type="password" inputMode="numeric" placeholder="새 PIN (4~6자리)" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }} maxLength={6} autoFocus style={{ ...inputStyle, textAlign: 'center', letterSpacing: 6 }} />
+          <input type="password" inputMode="numeric" placeholder="PIN 확인" value={pinConfirm} onChange={e => { setPinConfirm(e.target.value.replace(/\D/g, '')); setError(''); }} maxLength={6} style={{ ...inputStyle, textAlign: 'center', letterSpacing: 6 }} />
+          {error && <p style={{ color: '#ef4444', fontSize: 12, margin: '-4px 0 0' }}>{error}</p>}
+          <button type="submit" disabled={loading} style={btnStyle(loading)}>
+            {loading ? '저장 중...' : 'PIN 설정 후 로그인'}
+          </button>
+        </form>
+      )}
+    </AuthCard>
+  );
+}
+
+// ── Join Modal (초대 링크 가입) ───────────────────────────────────────────────
+function JoinModal({ token, onLogin }) {
+  const [inv, setInv] = useState(null);
+  const [invError, setInvError] = useState('');
+  const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const inputStyle = { width: '100%', padding: '12px 14px', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: 14, outline: 'none', color: '#111', boxSizing: 'border-box' };
+  const btnStyle = (disabled) => ({ padding: '12px', borderRadius: 12, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: ACCENT, color: '#fff', fontWeight: 700, fontSize: 14, opacity: disabled ? 0.7 : 1, transition: 'all 0.15s', fontFamily: 'inherit', width: '100%' });
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('sm_invitations').select('*').eq('token', token).maybeSingle();
+      if (!data) { setInvError('유효하지 않은 초대 링크입니다.'); setLoading(false); return; }
+      if (data.used_at) { setInvError('이미 사용된 초대 링크입니다.'); setLoading(false); return; }
+      if (new Date(data.expires_at) < new Date()) { setInvError('만료된 초대 링크입니다. 관리자에게 새 링크를 요청하세요.'); setLoading(false); return; }
+      setInv(data);
+      setLoading(false);
+    })();
+  }, [token]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setError('이름을 입력해주세요.'); return; }
+    if (!/^\d{4,6}$/.test(pin)) { setError('PIN은 4~6자리 숫자여야 합니다.'); return; }
+    if (pin !== pinConfirm) { setError('PIN이 일치하지 않습니다.'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      const { data: existing } = await supabase.from('sm_users').select('id').eq('name', name.trim()).maybeSingle();
+      if (existing) { setError('이미 사용 중인 이름입니다. 다른 이름을 사용하세요.'); setLoading(false); return; }
+      const { data: newUser, error: insertErr } = await supabase.from('sm_users').insert([{ name: name.trim(), role: inv.role, pin }]).select().single();
+      if (insertErr) { setError('가입 중 오류가 발생했습니다.'); setLoading(false); return; }
+      await supabase.from('sm_invitations').update({ used_at: new Date().toISOString(), used_by: newUser.id }).eq('id', inv.id);
+      // URL에서 token 파라미터 제거
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, '', url.pathname + (url.search || ''));
+      const { pin: _p, ...safeUser } = newUser;
+      onLogin(safeUser);
+    } catch {
+      setError('가입 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthCard>
+      {loading && <p style={{ textAlign: 'center', color: '#888', fontSize: 14 }}>초대 링크 확인 중...</p>}
+      {invError && (
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: '#ef4444', fontSize: 14 }}>{invError}</p>
+        </div>
+      )}
+      {inv && !loading && (
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ margin: '0 0 4px', fontSize: 13, color: '#555', textAlign: 'center' }}>
+            <strong>{inv.role === 'admin' ? '관리자' : '구성원'}</strong> 권한으로 초대되었습니다.<br />
+            <span style={{ fontSize: 12, color: '#888' }}>이름과 PIN을 설정하고 시작하세요</span>
+          </p>
+          <input type="text" placeholder="이름" value={name} onChange={e => { setName(e.target.value); setError(''); }} autoFocus maxLength={30} style={inputStyle} />
+          <input type="password" inputMode="numeric" placeholder="PIN (4~6자리 숫자)" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }} maxLength={6} style={{ ...inputStyle, textAlign: 'center', letterSpacing: 6 }} />
+          <input type="password" inputMode="numeric" placeholder="PIN 확인" value={pinConfirm} onChange={e => { setPinConfirm(e.target.value.replace(/\D/g, '')); setError(''); }} maxLength={6} style={{ ...inputStyle, textAlign: 'center', letterSpacing: 6 }} />
+          {error && <p style={{ color: '#ef4444', fontSize: 12, margin: '-4px 0 0' }}>{error}</p>}
+          <button type="submit" disabled={loading} style={btnStyle(loading)}>
+            {loading ? '가입 중...' : '가입하기'}
+          </button>
+        </form>
+      )}
+    </AuthCard>
   );
 }
 
@@ -341,7 +488,11 @@ export default function App() {
   }, [updateAppointment, fetchAppointments]);
 
   // ── early return: 로그인 안 된 경우 / 로딩 중 ─────────────────────────────────
-  if (!currentUser) return <LoginModal onLogin={handleLogin} />;
+  if (!currentUser) {
+    const urlToken = new URLSearchParams(window.location.search).get('token');
+    if (urlToken) return <JoinModal token={urlToken} onLogin={handleLogin} />;
+    return <LoginModal onLogin={handleLogin} />;
+  }
 
   if (loading) {
     return (
