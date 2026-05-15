@@ -275,7 +275,7 @@ export default function FeedPage({ projects = [], users = [], tasks = [], appoin
           }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
-          업데이트 추가
+          피드(업무) 추가
         </button>
       </div>
 
@@ -343,7 +343,7 @@ export default function FeedPage({ projects = [], users = [], tasks = [], appoin
           <div style={{ padding: '60px 0', textAlign: 'center', color: '#d1d5db' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 48, display: 'block', marginBottom: 12 }}>feed</span>
             <p style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>아직 기록이 없습니다</p>
-            <p style={{ fontSize: 12, margin: '4px 0 0' }}>업데이트 추가 버튼으로 첫 기록을 남겨보세요</p>
+            <p style={{ fontSize: 12, margin: '4px 0 0' }}>피드(업무) 추가 버튼으로 첫 기록을 남겨보세요</p>
           </div>
         ) : (
           notes.map(note => (
