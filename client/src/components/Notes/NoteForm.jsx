@@ -15,8 +15,13 @@ export default function NoteForm({ projectId, users = [], tasks = [], appointmen
   const [meetingDate, setMeetingDate] = useState(initialData?.meeting_date || new Date().toISOString().slice(0, 10));
   const [attendees, setAttendees] = useState(initialData?.attendees || []);
   const [toUserId, setToUserId] = useState(initialData?.to_user_id || '');
-  const [linkedTaskId,  setLinkedTaskId]  = useState(initialData?.task_id       || '');
-  const [linkedApptId,  setLinkedApptId]  = useState(initialData?.appointment_id || '');
+  // 연결 항목: "task:id" 또는 "appt:id" 형식으로 통합 관리
+  const initLinked = () => {
+    if (initialData?.task_id)        return `task:${initialData.task_id}`;
+    if (initialData?.appointment_id) return `appt:${initialData.appointment_id}`;
+    return '';
+  };
+  const [linkedItem, setLinkedItem] = useState(initLinked);
   const [checklist, setChecklist] = useState(initialData?.checklist || []);
   const [saving, setSaving] = useState(false);
   const isEdit = !!initialData;
@@ -85,9 +90,10 @@ export default function NoteForm({ projectId, users = [], tasks = [], appointmen
       payload.to_user_id = toUserId || null;
       payload.task_id = linkedTaskId || null;
     }
-    if (type === 'issue') {
-      if (linkedTaskId)  payload.task_id        = linkedTaskId;
-      if (linkedApptId)  payload.appointment_id = linkedApptId;
+    if (type === 'issue' && linkedItem) {
+      const [kind, id] = linkedItem.split(':');
+      if (kind === 'task') payload.task_id = id;
+      if (kind === 'appt') payload.appointment_id = id;
     }
 
     await onSave(payload);
@@ -192,36 +198,31 @@ export default function NoteForm({ projectId, users = [], tasks = [], appointmen
         </div>
       )}
 
-      {/* Issue: linked task + linked appointment */}
-      {type === 'issue' && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {/* Issue: 연결 항목 통합 드롭다운 (업무 / 약속) */}
+      {type === 'issue' && (tasks.length > 0 || appointments.length > 0) && (
+        <select
+          value={linkedItem}
+          onChange={e => setLinkedItem(e.target.value)}
+          style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, outline: 'none', background: '#fff' }}
+        >
+          <option value="">연결 항목 (선택)</option>
           {tasks.length > 0 && (
-            <select
-              value={linkedTaskId}
-              onChange={e => setLinkedTaskId(e.target.value)}
-              style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, outline: 'none', background: '#fff' }}
-            >
-              <option value="">연결 업무 (선택)</option>
+            <optgroup label="업무">
               {tasks.map(t => (
-                <option key={t.id} value={t.id}>{t.title}</option>
+                <option key={`task:${t.id}`} value={`task:${t.id}`}>{t.title}</option>
               ))}
-            </select>
+            </optgroup>
           )}
           {appointments.length > 0 && (
-            <select
-              value={linkedApptId}
-              onChange={e => setLinkedApptId(e.target.value)}
-              style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 13, outline: 'none', background: '#fff' }}
-            >
-              <option value="">연결 약속 (선택)</option>
+            <optgroup label="약속">
               {appointments.map(a => (
-                <option key={a.id} value={a.id}>
+                <option key={`appt:${a.id}`} value={`appt:${a.id}`}>
                   {a.title}{a.date ? ` · ${new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}` : ''}
                 </option>
               ))}
-            </select>
+            </optgroup>
           )}
-        </div>
+        </select>
       )}
 
       {/* Content */}
