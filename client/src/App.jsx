@@ -370,6 +370,7 @@ export default function App() {
         projects={projects}
         selectedProjectId={selectedProjectId}
         onSelectProject={setSelectedProjectId}
+        onArchiveProject={useTaskStore.getState().archiveProject}
       />
 
       {/* ── Main Area ── */}

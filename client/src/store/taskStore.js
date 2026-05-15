@@ -280,6 +280,19 @@ const useTaskStore = create((set, get) => ({
     }
   },
 
+  archiveProject: async (id) => {
+    try {
+      const { error } = await supabase.from('sm_projects').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      get().fetchProjects();
+      get().showToast('프로젝트가 아카이브되었습니다.', 'info');
+      return { success: true };
+    } catch (err) {
+      get().showToast('아카이브 실패: ' + err.message, 'error');
+      return { error: err.message };
+    }
+  },
+
   deleteNote: async (id) => {
     try {
       const { error } = await supabase.from('sm_notes').delete().eq('id', id);
