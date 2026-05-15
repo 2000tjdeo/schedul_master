@@ -504,7 +504,15 @@ export default function App() {
   }
 
   const calProps = { tasks: calendarTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop, onViewMonthChange: setCalendarViewDate };
-  const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask, projects: projects };
+  const boardProps = {
+    tasks: filteredTasks,
+    onTaskClick: setSelectedTask,
+    onMoveTask: moveTask,
+    onCreateTask: openCreateTask,
+    projects: projects,
+    selectedProjectIds: selectedProjectId ? [selectedProjectId] : [],
+    onProjectToggle: (id) => setSelectedProjectId(prev => id === null ? null : prev === id ? null : id),
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: STITCH.bg, fontFamily: 'Inter, sans-serif' }}>
