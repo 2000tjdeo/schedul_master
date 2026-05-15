@@ -203,64 +203,60 @@ export default function TimelineCalendar({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* View Toggle */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-black font-['Manrope'] text-on-surface">
-          {projectTitle}
-        </h3>
-        <div className="flex gap-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', fontFamily: 'Manrope, sans-serif', margin: 0 }}>Timeline</h2>
+          <p style={{ fontSize: 13, color: '#9ca3af', margin: '2px 0 0', fontWeight: 500 }}>간트 차트 · 일정 · 프로젝트 진행률을 한눈에 확인하세요</p>
+        </div>
+        {/* View Toggle */}
+        <div style={{ display: 'flex', gap: 6 }}>
           <button
             onClick={() => setView('gantt')}
-            className={`px-3 py-1.5 text-sm font-bold rounded-full transition-colors 
-              ${view === 'gantt' 
-                ? 'bg-primary text-white' 
-                : 'bg-surface text-secondary hover:bg-surface-container-high'
-              }`}
-          >
-            Gantt
-          </button>
+            style={{
+              padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+              background: view === 'gantt' ? '#1a1c1c' : '#f1f5f9',
+              color: view === 'gantt' ? '#fff' : '#52525b',
+            }}
+          >Gantt</button>
           <button
             onClick={() => setView('calendar')}
-            className={`px-3 py-1.5 text-sm font-bold rounded-full transition-colors 
-              ${view === 'calendar' 
-                ? 'bg-primary text-white' 
-                : 'bg-surface text-secondary hover:bg-surface-container-high'
-              }`}
-          >
-            Calendar
-          </button>
+            style={{
+              padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+              background: view === 'calendar' ? '#1a1c1c' : '#f1f5f9',
+              color: view === 'calendar' ? '#fff' : '#52525b',
+            }}
+          >Calendar</button>
         </div>
       </div>
 
-      {/* 프로젝트 필터 */}
+      {/* 프로젝트 필터 pill */}
       {projects && projects.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button
             onClick={() => setSelectedFilterProjectId(null)}
-            className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors 
-              ${!selectedFilterProjectId 
-                ? 'bg-primary text-white' 
-                : 'bg-surface text-secondary hover:bg-surface-container-high'
-              }`}
-          >
-            전체
-          </button>
+            style={{
+              padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+              background: !selectedFilterProjectId ? '#1a1c1c' : '#f1f5f9',
+              color: !selectedFilterProjectId ? '#fff' : '#52525b',
+            }}
+          >전체</button>
           {projects.map(p => (
             <button
               key={p.id}
               onClick={() => setSelectedFilterProjectId(p.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-full flex items-center gap-1.5 transition-colors 
-                ${selectedFilterProjectId === p.id 
-                  ? 'text-white' 
-                  : 'bg-surface text-secondary'
-              }`}
               style={{
-                background: selectedFilterProjectId === p.id ? p.color : undefined,
+                padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+                background: selectedFilterProjectId === p.id ? (p.color || '#6366f1') : '#f1f5f9',
+                color: selectedFilterProjectId === p.id ? '#fff' : '#52525b',
               }}
             >
-              <span className="w-2 h-2 rounded-full" style={{ background: selectedFilterProjectId === p.id ? '#fff' : p.color }} />
-              {p.name}
+              {p.name || p.title}
             </button>
           ))}
         </div>
