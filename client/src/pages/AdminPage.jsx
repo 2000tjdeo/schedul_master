@@ -72,6 +72,7 @@ export default function AdminPage({ currentUser, onClose }) {
   const [projects,     setProjects]     = useState([]);
   const [editingProject, setEditingProject] = useState(null);
   const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectDates, setEditProjectDates] = useState({ start_date: '', end_date: '' });
   const [loading,     setLoading]     = useState(false);
   const [inviteModal, setInviteModal] = useState(false);
   const [newInvite,   setNewInvite]   = useState(null);
@@ -189,15 +190,22 @@ export default function AdminPage({ currentUser, onClose }) {
   const handleEditProject = (p) => {
     setEditingProject(p.id);
     setEditProjectName(p.name);
+    setEditProjectDates({ start_date: p.start_date || '', end_date: p.end_date || '' });
   };
 
   // 프로젝트 수정 저장
   const handleSaveProject = async () => {
     if (!editProjectName.trim() || !editingProject) return;
-    const { error } = await supabase.from('sm_projects').update({ title: editProjectName.trim() }).eq('id', editingProject);
-    if (!error) showToast('프로젝트 이름이 변경되었습니다', 'success');
+    const payload = { title: editProjectName.trim() };
+    if (editProjectDates.start_date) payload.start_date = editProjectDates.start_date;
+    else payload.start_date = null;
+    if (editProjectDates.end_date) payload.end_date = editProjectDates.end_date;
+    else payload.end_date = null;
+    const { error } = await supabase.from('sm_projects').update(payload).eq('id', editingProject);
+    if (!error) showToast('프로젝트가 수정되었습니다', 'success');
     setEditingProject(null);
     setEditProjectName('');
+    setEditProjectDates({ start_date: '', end_date: '' });
     fetchProjects();
   };
 
@@ -529,39 +537,62 @@ export default function AdminPage({ currentUser, onClose }) {
                   projects.map((p, i) => (
                     <div key={i} style={{
                       padding: '12px 16px', borderBottom: '1px solid #f0f0f0',
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      gap: 8,
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: p.color }} />
-                        {editingProject === p.id ? (
-                          <input
-                            value={editProjectName}
-                            onChange={e => setEditProjectName(e.target.value)}
-                            onKeyDown={k => k.key === 'Enter' && handleSaveProject()}
-                            style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 14 }}
-                            autoFocus
-                          />
-                        ) : (
-                          <span style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {editingProject === p.id ? (
-                          <>
-                            <button onClick={handleSaveProject} style={{
-                              padding: '6px 10px', borderRadius: 6, border: 'none',
-                              background: '#d1fae5', color: '#065f46', fontSize: 12, fontWeight: 600,
-                              cursor: 'pointer',
-                            }}>저장</button>
+                      {editingProject === p.id ? (
+                        /* 편집 모드 */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0, background: p.color }} />
+                            <input
+                              value={editProjectName}
+                              onChange={e => setEditProjectName(e.target.value)}
+                              onKeyDown={k => k.key === 'Enter' && handleSaveProject()}
+                              style={{ flex: 1, padding: '5px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 14 }}
+                              autoFocus
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingLeft: 20 }}>
+                            <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, whiteSpace: 'nowrap' }}>기간</span>
+                            <input
+                              type="date"
+                              value={editProjectDates.start_date}
+                              onChange={e => setEditProjectDates(d => ({ ...d, start_date: e.target.value }))}
+                              style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 12, outline: 'none' }}
+                            />
+                            <span style={{ fontSize: 11, color: '#9ca3af' }}>~</span>
+                            <input
+                              type="date"
+                              value={editProjectDates.end_date}
+                              onChange={e => setEditProjectDates(d => ({ ...d, end_date: e.target.value }))}
+                              style={{ flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 12, outline: 'none' }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                             <button onClick={() => setEditingProject(null)} style={{
-                              padding: '6px 10px', borderRadius: 6, border: 'none',
-                              background: '#f3f4f6', color: '#374151', fontSize: 12, fontWeight: 600,
-                              cursor: 'pointer',
+                              padding: '5px 12px', borderRadius: 6, border: 'none',
+                              background: '#f3f4f6', color: '#374151', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                             }}>취소</button>
-                          </>
-                        ) : (
-                          <>
+                            <button onClick={handleSaveProject} style={{
+                              padding: '5px 12px', borderRadius: 6, border: 'none',
+                              background: '#d1fae5', color: '#065f46', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            }}>저장</button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* 일반 모드 */
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0, background: p.color }} />
+                              <span style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</span>
+                            </div>
+                            {(p.start_date || p.end_date) && (
+                              <span style={{ fontSize: 11, color: '#9ca3af', paddingLeft: 20 }}>
+                                {p.start_date || '?'} ~ {p.end_date || '?'}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 4 }}>
                             {p.status === 'completed' && (
                               <span style={{
                                 fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 10,
@@ -584,9 +615,9 @@ export default function AdminPage({ currentUser, onClose }) {
                               background: '#fee2e2', color: '#dc2626', fontSize: 12, fontWeight: 600,
                               cursor: 'pointer',
                             }}>삭제</button>
-                          </>
-                        )}
-                      </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
