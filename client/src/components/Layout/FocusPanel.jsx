@@ -38,6 +38,8 @@ export default function FocusPanel({
   const [todayLoading, setTodayLoading] = useState(false);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [saveProjectId, setSaveProjectId] = useState('');
 
   // cache: { [dateKey]: summary }
   const todayCache = useRef({});
@@ -106,7 +108,13 @@ export default function FocusPanel({
   const handleSaveNote = async () => {
     const summary = briefingTab === 'today' ? todaySummary : weeklySummary;
     if (!summary || saving) return;
+    const pid = selectedProject?.id || saveProjectId;
+    if (!pid) {
+      setShowProjectPicker(true);
+      return;
+    }
     setSaving(true);
+    setShowProjectPicker(false);
     const title = briefingTab === 'today'
       ? `AI 일일 브리핑 · ${dateStr}`
       : `AI 주간 요약 · ${week.start} ~ ${week.end}`;
@@ -114,10 +122,11 @@ export default function FocusPanel({
       type: 'progress',
       title,
       content: summary,
-      project_id: selectedProject?.id || null,
+      project_id: pid,
       from_user_id: currentUser?.id || null,
     });
     setSaving(false);
+    setSaveProjectId('');
   };
 
   const currentSummary = briefingTab === 'today' ? todaySummary : weeklySummary;
@@ -217,9 +226,39 @@ export default function FocusPanel({
             )}
           </div>
 
+          {/* 프로젝트 선택 picker (project_id 없을 때) */}
+          {showProjectPicker && currentSummary && (
+            <div style={{ padding: '0 14px 8px', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <select
+                value={saveProjectId}
+                onChange={e => setSaveProjectId(e.target.value)}
+                style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 8, border: '1px solid #e5e7eb', outline: 'none', background: '#fff' }}
+              >
+                <option value="">프로젝트 선택</option>
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name || p.title}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleSaveNote}
+                disabled={!saveProjectId || saving}
+                style={{
+                  fontSize: 11, fontWeight: 700, color: '#fff',
+                  background: ACCENT, border: 'none', borderRadius: 8,
+                  padding: '4px 10px', cursor: 'pointer',
+                  opacity: (!saveProjectId || saving) ? 0.5 : 1,
+                }}
+              >{saving ? '저장 중...' : '저장'}</button>
+              <button
+                onClick={() => setShowProjectPicker(false)}
+                style={{ fontSize: 11, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' }}
+              >취소</button>
+            </div>
+          )}
+
           {/* 하단 액션 */}
           <div style={{ padding: '0 14px 12px', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            {currentSummary && (
+            {currentSummary && !showProjectPicker && (
               <button
                 onClick={handleSaveNote}
                 disabled={saving}
