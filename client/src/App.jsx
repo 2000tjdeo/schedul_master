@@ -689,6 +689,7 @@ export default function App() {
                   projects={projects}
                   users={users}
                   tasks={filteredTasks}
+                  appointments={appointments}
                   currentUser={currentUser}
                 />
               )}

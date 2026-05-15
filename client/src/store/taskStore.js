@@ -240,7 +240,7 @@ const useTaskStore = create((set, get) => ({
     try {
       let query = supabase
         .from('sm_notes')
-        .select('*, from_user:from_user_id(name), to_user:to_user_id(name)')
+        .select('*, from_user:from_user_id(name), to_user:to_user_id(name), appointment:appointment_id(id, title, date)')
         .order('created_at', { ascending: false });
       if (projectId) query = query.eq('project_id', projectId);
       const { data, error } = await query;

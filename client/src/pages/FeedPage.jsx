@@ -72,10 +72,13 @@ function ChecklistSection({ checklist, onToggle }) {
   );
 }
 
-function NoteCard({ note, tasks = [], projects = [], onDelete, onEdit, onToggleCheck, currentUserId }) {
+function NoteCard({ note, tasks = [], projects = [], appointments = [], onDelete, onEdit, onToggleCheck, currentUserId }) {
   const meta = NOTE_META[note.type] || NOTE_META.progress;
   const linkedTask = note.task_id ? tasks.find(t => t.id === note.task_id) : null;
   const project = note.project_id ? projects.find(p => p.id === note.project_id) : null;
+  const linkedAppt = note.appointment_id
+    ? (note.appointment || appointments.find(a => a.id === note.appointment_id))
+    : null;
   const canEdit = note.from_user_id === currentUserId;
   const canDelete = canEdit;
 
@@ -154,22 +157,39 @@ function NoteCard({ note, tasks = [], projects = [], onDelete, onEdit, onToggleC
           />
         )}
 
-        {linkedTask && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8,
-            padding: '3px 10px', borderRadius: 8,
-            background: '#f1f5f9', fontSize: 11, fontWeight: 600, color: '#475569',
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>link</span>
-            {linkedTask.title}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: linkedTask || linkedAppt ? 8 : 0 }}>
+          {linkedTask && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 10px', borderRadius: 8,
+              background: '#f1f5f9', fontSize: 11, fontWeight: 600, color: '#475569',
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>task_alt</span>
+              {linkedTask.title}
+            </div>
+          )}
+          {linkedAppt && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 10px', borderRadius: 8,
+              background: '#f5f3ff', fontSize: 11, fontWeight: 600, color: '#7c3aed',
+            }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>event</span>
+              {linkedAppt.title}
+              {linkedAppt.date && (
+                <span style={{ fontWeight: 400, color: '#a78bfa' }}>
+                  · {new Date(linkedAppt.date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-export default function FeedPage({ projects = [], users = [], tasks = [], currentUser }) {
+export default function FeedPage({ projects = [], users = [], tasks = [], appointments = [], currentUser }) {
   const { fetchNotes, addNote, updateNote, deleteNote } = useTaskStore();
   const [filterProjectId, setFilterProjectId] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -307,6 +327,7 @@ export default function FeedPage({ projects = [], users = [], tasks = [], curren
             projectId={formProjectId}
             users={users}
             tasks={formTasks}
+            appointments={appointments}
             currentUser={currentUser}
             onSave={handleSave}
             onCancel={() => { setShowForm(false); setFormProjectId(null); }}
@@ -332,6 +353,7 @@ export default function FeedPage({ projects = [], users = [], tasks = [], curren
                 projectId={note.project_id}
                 users={users}
                 tasks={tasks.filter(t => t.project_id === note.project_id)}
+                appointments={appointments}
                 currentUser={currentUser}
                 initialData={editingNote}
                 onSave={handleUpdate}
@@ -343,6 +365,7 @@ export default function FeedPage({ projects = [], users = [], tasks = [], curren
                 note={note}
                 tasks={tasks}
                 projects={projects}
+                appointments={appointments}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
                 onToggleCheck={handleToggleCheck}
