@@ -38,15 +38,20 @@ export default function AppSidebar({
   const monthStart = `${viewMonth}-01`;
   const monthEnd = `${viewMonth}-${String(new Date(viewYear, viewMon, 0).getDate()).padStart(2, '0')}`;
 
-  // 보고 있는 월에 기간이 겹치는 프로젝트만 활성 표시
+  // 오늘 날짜 (기간 만료 판단용)
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 보고 있는 월에 기간이 겹치는 프로젝트만 표시 (기간 없으면 항상 표시)
   const activeProjects = projects.filter(p =>
     p.status !== 'completed' &&
     (!p.end_date || p.end_date >= monthStart) &&
     (!p.start_date || p.start_date <= monthEnd)
   );
-  // 보고 있는 월 이전에 종료된 프로젝트 (기간 만료)
+  // 기간 만료는 오늘 기준 (아카이브 버튼 제공 목적)
   const expiredProjects = projects.filter(p =>
-    p.status !== 'completed' && p.end_date && p.end_date < monthStart
+    p.status !== 'completed' && p.end_date && p.end_date < today &&
+    // 활성 목록에 이미 있으면 제외
+    !((!p.end_date || p.end_date >= monthStart) && (!p.start_date || p.start_date <= monthEnd))
   );
   const completedProjects = projects.filter(p => p.status === 'completed');
 
