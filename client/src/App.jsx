@@ -371,6 +371,7 @@ export default function App() {
         selectedProjectId={selectedProjectId}
         onSelectProject={setSelectedProjectId}
         onArchiveProject={useTaskStore.getState().archiveProject}
+        viewDate={selectedDate}
       />
 
       {/* ── Main Area ── */}
