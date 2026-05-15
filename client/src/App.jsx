@@ -722,7 +722,7 @@ export default function App() {
           {/* Desktop View: FocusPanel is persistent on the right */}
           {isDesktop && activeTab === 'calendar' && (
             <div style={{ width: 320, flexShrink: 0, height: '100%', overflowY: 'auto', background: STITCH.side }}>
-              <FocusPanel selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} selectedProject={selectedProject} projectStats={projectStats} onClearProject={() => setSelectedProjectId(null)} users={users} currentUser={currentUser} />
+              <FocusPanel selectedDate={selectedDate} tasks={filteredTasks} appointments={appointments} onTaskClick={setSelectedTask} onApptClick={setSelectedAppt} selectedProject={selectedProject} projectStats={projectStats} onClearProject={() => setSelectedProjectId(null)} users={users} currentUser={currentUser} projects={projects} />
             </div>
           )}
 
