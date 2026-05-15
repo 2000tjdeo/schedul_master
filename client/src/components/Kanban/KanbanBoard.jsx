@@ -5,29 +5,36 @@ const COLUMNS = ['todo', 'in_progress', 'done'];
 
 function ProjectFilterPills({ projects = [], selectedProjectIds = [], onProjectToggle }) {
   if (!projects?.length) return null;
-  
+  const isAll = selectedProjectIds.length === 0;
+
   return (
-    <div className="flex flex-wrap gap-2 mb-4">
-      <button 
-        onClick={() => onProjectToggle?.(null)} 
-        className={`px-3 py-1.5 rounded-full text-xs font-bold ${selectedProjectIds.length === 0 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}
-      >
-        All
-      </button>
-      {projects.map(proj => (
-        <button 
-          key={proj.id} 
-          onClick={() => onProjectToggle?.(proj.id)} 
-          className="px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5"
-          style={{ 
-            background: selectedProjectIds.includes(proj.id) ? proj.color : '#f1f5f9', 
-            color: selectedProjectIds.includes(proj.id) ? '#fff' : '#475569' 
-          }}
-        >
-          <span className="w-2 h-2 rounded-full" style={{ background: selectedProjectIds.includes(proj.id) ? '#fff' : proj.color }} />
-          {proj.title}
-        </button>
-      ))}
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+      <button
+        onClick={() => onProjectToggle?.(null)}
+        style={{
+          padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+          fontSize: 12, fontWeight: 700,
+          background: isAll ? '#1a1c1c' : '#f1f5f9',
+          color: isAll ? '#fff' : '#52525b',
+          transition: 'all 0.15s',
+        }}
+      >전체</button>
+      {projects.map(proj => {
+        const active = selectedProjectIds.includes(proj.id);
+        return (
+          <button
+            key={proj.id}
+            onClick={() => onProjectToggle?.(proj.id)}
+            style={{
+              padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700,
+              background: active ? (proj.color || '#6366f1') : '#f1f5f9',
+              color: active ? '#fff' : '#52525b',
+              transition: 'all 0.15s',
+            }}
+          >{proj.title || proj.name}</button>
+        );
+      })}
     </div>
   );
 }
