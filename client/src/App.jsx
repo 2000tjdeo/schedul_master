@@ -137,6 +137,10 @@ export default function App() {
   const [activeTab,      setActiveTab]      = useState('calendar'); // calendar, kanban, tasks, archived, timeline
   const [showArchived,   setShowArchived]   = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(null); // 프로젝트 컨텍스트 모드
+  const [calendarViewDate, setCalendarViewDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+  });
 
   const {
     tasks, users, appointments, projects, loading, toast, selectedDate,
@@ -348,7 +352,7 @@ export default function App() {
     );
   }
 
-  const calProps = { tasks: calendarTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop };
+  const calProps = { tasks: calendarTasks, appointments, selectedDate, onSelectDate: setSelectedDate, onTaskClick: setSelectedTask, onApptClick: setSelectedAppt, onCreateAppt: openCreateAppt, onTaskDateDrop: handleTaskDateDrop, onApptDateDrop: handleApptDateDrop, onViewMonthChange: setCalendarViewDate };
   const boardProps = { tasks: filteredTasks, onTaskClick: setSelectedTask, onMoveTask: moveTask, onCreateTask: openCreateTask, projects: projects };
 
   return (
@@ -371,7 +375,7 @@ export default function App() {
         selectedProjectId={selectedProjectId}
         onSelectProject={setSelectedProjectId}
         onArchiveProject={useTaskStore.getState().archiveProject}
-        viewDate={selectedDate}
+        viewDate={calendarViewDate}
       />
 
       {/* ── Main Area ── */}

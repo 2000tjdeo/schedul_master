@@ -13,7 +13,7 @@ const CAL_TABS = [
   { id: 'year',  label: 'Year' },
 ];
 
-export default function CalendarPanel({ tasks, appointments = [], selectedDate, onSelectDate, onTaskClick, onApptClick, onCreateAppt, onTaskDateDrop, onApptDateDrop }) {
+export default function CalendarPanel({ tasks, appointments = [], selectedDate, onSelectDate, onTaskClick, onApptClick, onCreateAppt, onTaskDateDrop, onApptDateDrop, onViewMonthChange }) {
   const [calTab, setCalTab] = useState('month');
   const [viewYear, setViewYear] = useState(() => {
     const d = selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date();
@@ -25,20 +25,34 @@ export default function CalendarPanel({ tasks, appointments = [], selectedDate, 
   });
   const [weekBase, setWeekBase] = useState(selectedDate || toYMD(new Date()));
 
+  const notifyMonthChange = (year, month) => {
+    if (onViewMonthChange) {
+      onViewMonthChange(`${year}-${String(month + 1).padStart(2, '0')}-01`);
+    }
+  };
+
   const goPrev = () => {
     if (calTab === 'year') {
-      setViewYear(y => y - 1);
+      setViewYear(y => { notifyMonthChange(y - 1, viewMonth); return y - 1; });
     } else {
-      if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
-      else setViewMonth(m => m - 1);
+      if (viewMonth === 0) {
+        setViewMonth(11);
+        setViewYear(y => { notifyMonthChange(y - 1, 11); return y - 1; });
+      } else {
+        setViewMonth(m => { notifyMonthChange(viewYear, m - 1); return m - 1; });
+      }
     }
   };
   const goNext = () => {
     if (calTab === 'year') {
-      setViewYear(y => y + 1);
+      setViewYear(y => { notifyMonthChange(y + 1, viewMonth); return y + 1; });
     } else {
-      if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
-      else setViewMonth(m => m + 1);
+      if (viewMonth === 11) {
+        setViewMonth(0);
+        setViewYear(y => { notifyMonthChange(y + 1, 0); return y + 1; });
+      } else {
+        setViewMonth(m => { notifyMonthChange(viewYear, m + 1); return m + 1; });
+      }
     }
   };
 
