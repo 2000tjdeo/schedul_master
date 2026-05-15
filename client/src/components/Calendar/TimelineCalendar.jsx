@@ -2,6 +2,203 @@ import React, { useState, useMemo } from 'react';
 import { format, addDays, startOfWeek, eachDayOfInterval, isToday, differenceInDays, parseISO } from 'date-fns';
 import { ACCENT, CATEGORY_COLORS } from '../../utils/colorMap.js';
 
+// ── Milestone Calendar Component ────────────────────────────────────────────────
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+function MilestoneCalendar({ tasks = [], appointments = [], projects = [], onTaskClick, onApptClick }) {
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [selectedDate, setSelectedDate] = useState(now.toISOString().slice(0, 10));
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
+    else setViewMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const firstDay = new Date(viewYear, viewMonth, 1);
+  const lastDay = new Date(viewYear, viewMonth + 1, 0);
+  const startOffset = firstDay.getDay();
+  const days = [];
+  const prevLastDay = new Date(viewYear, viewMonth, 0).getDate();
+  for (let i = startOffset - 1; i >= 0; i--) days.push({ day: prevLastDay - i, current: false, date: null });
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dt = new Date(viewYear, viewMonth, d);
+    days.push({ day: d, current: true, date: dt.toISOString().slice(0, 10) });
+  }
+
+  const getProjectColor = (projectId) => {
+    const p = projects.find(p => p.id === projectId);
+    return p?.color || ACCENT;
+  };
+
+  const getDotsForDay = (ymd) => {
+    if (!ymd) return [];
+    const dots = [];
+    tasks.forEach(t => {
+      const due = t.due_date || t.task_date;
+      if (due === ymd) dots.push({ color: getProjectColor(t.project_id), label: t.title });
+    });
+    appointments.forEach(a => {
+      if (a.date === ymd) dots.push({ color: a.color || '#8b5cf6', label: a.title });
+    });
+    return dots.slice(0, 3);
+  };
+
+  const selectedTasks = tasks.filter(t => {
+    const s = t.task_date || t.due_date;
+    const e = t.due_date || t.task_date;
+    return s && s <= selectedDate && selectedDate <= (e || s);
+  });
+  const selectedAppts = appointments.filter(a => a.date === selectedDate);
+
+  const selDateObj = selectedDate ? new Date(selectedDate + 'T00:00:00') : null;
+  const selDateStr = selDateObj?.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+
+  const STATUS_LABEL = { todo: '할 일', in_progress: '진행 중', done: '완료' };
+  const STATUS_COLOR = { todo: '#94a3b8', in_progress: '#f59e0b', done: '#10b981' };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* 달력 */}
+      <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f1f1', padding: '20px 16px' }}>
+        {/* 월 네비게이션 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <button onClick={prevMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', padding: '4px 8px' }}>‹</button>
+          <span style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', fontFamily: 'Manrope' }}>
+            {viewYear}년 {viewMonth + 1}월
+          </span>
+          <button onClick={nextMonth} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', padding: '4px 8px' }}>›</button>
+        </div>
+
+        {/* 요일 헤더 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 8 }}>
+          {DOW.map((d, i) => (
+            <div key={d} style={{
+              textAlign: 'center', fontSize: 11, fontWeight: 800,
+              color: i === 0 ? '#f87171' : i === 6 ? '#60a5fa' : '#9ca3af',
+            }}>{d}</div>
+          ))}
+        </div>
+
+        {/* 날짜 그리드 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px 0' }}>
+          {days.map((day, i) => {
+            const col = i % 7;
+            const isSel = day.date === selectedDate;
+            const isTd = day.date && day.date === now.toISOString().slice(0, 10);
+            const dots = getDotsForDay(day.date);
+            const hasDue = dots.length > 0;
+            const dowColor = col === 0 ? '#f87171' : col === 6 ? '#60a5fa' : '#4b5563';
+
+            return (
+              <div
+                key={i}
+                onClick={() => day.date && setSelectedDate(day.date)}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: 6, cursor: day.date ? 'pointer' : 'default' }}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: (isSel || isTd || hasDue) ? 800 : 400,
+                  background: isTd ? '#1a1c1c' : isSel ? '#f1f5f9' : 'transparent',
+                  color: isTd ? '#fff' : day.current ? (isSel ? '#1a1c1c' : dowColor) : '#d1d5db',
+                  border: isSel && !isTd ? '2px solid #1a1c1c' : '2px solid transparent',
+                  transition: 'all 0.15s',
+                  fontFamily: 'Manrope',
+                }}>
+                  {day.day}
+                </div>
+                {/* 마감 도트 */}
+                <div style={{ display: 'flex', gap: 2, marginTop: 2, height: 6 }}>
+                  {dots.map((dot, di) => (
+                    <div key={di} style={{ width: 5, height: 5, borderRadius: '50%', background: isTd ? 'rgba(255,255,255,0.8)' : dot.color }} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 선택일 마일스톤 목록 */}
+      <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f1f1', padding: 16 }}>
+        <h4 style={{ fontSize: 13, fontWeight: 800, color: '#1a1c1c', margin: '0 0 12px', fontFamily: 'Manrope' }}>
+          {selDateStr} 일정
+        </h4>
+
+        {selectedAppts.length === 0 && selectedTasks.length === 0 ? (
+          <p style={{ fontSize: 12, color: '#d1d5db', textAlign: 'center', padding: '20px 0', margin: 0 }}>이 날 일정이 없습니다.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* 약속 */}
+            {selectedAppts.map(a => (
+              <div
+                key={a.id}
+                onClick={() => onApptClick?.(a)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                  background: '#f5f3ff', border: '1px solid #ede9fe',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f5f3ff'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#8b5cf6', flexShrink: 0 }}>event</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#1a1c1c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</p>
+                  {a.start_time && <p style={{ fontSize: 11, color: '#8b5cf6', margin: '2px 0 0', fontWeight: 600 }}>{a.start_time.slice(0, 5)}{a.end_time ? ` ~ ${a.end_time.slice(0, 5)}` : ''}</p>}
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', background: '#ede9fe', padding: '2px 7px', borderRadius: 6, flexShrink: 0 }}>약속</span>
+              </div>
+            ))}
+
+            {/* 업무 — 프로젝트별 그룹 */}
+            {selectedTasks.map(t => {
+              const proj = projects.find(p => p.id === t.project_id);
+              const pColor = proj?.color || ACCENT;
+              const isDue = t.due_date === selectedDate;
+              return (
+                <div
+                  key={t.id}
+                  onClick={() => onTaskClick?.(t)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                    background: '#fafafa', border: `1px solid #f1f1f1`,
+                    borderLeft: `3px solid ${pColor}`,
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f8f8f8'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fafafa'}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                      {proj && <span style={{ fontSize: 10, fontWeight: 700, color: pColor, flexShrink: 0 }}>{proj.name || proj.title}</span>}
+                      {isDue && <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', background: '#fee2e2', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>마감</span>}
+                    </div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1a1c1c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</p>
+                  </div>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, flexShrink: 0,
+                    background: STATUS_COLOR[t.status] + '22',
+                    color: STATUS_COLOR[t.status],
+                  }}>{STATUS_LABEL[t.status] || t.status}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const COL_W = 36; // px per day column
 const ROW_H = 56; // px per task row
 const LEFT_W = 192; // px for task name column
@@ -292,16 +489,13 @@ export default function TimelineCalendar({
           projects={projects}
         />
       ) : (
-        <div className="bg-surface-container-lowest rounded-2xl p-4 overflow-x-auto">
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className="text-base font-black font-['Manrope'] text-on-surface">
-              📅 일정
-            </h3>
-          </div>
-          <p className="text-center text-secondary-fixed-dim py-8">
-            Calendar view - Use Gantt view for timeline
-          </p>
-        </div>
+        <MilestoneCalendar
+          tasks={filteredTasks}
+          appointments={projectAppointments}
+          projects={projects}
+          onTaskClick={onTaskClick}
+          onApptClick={onApptClick}
+        />
       )}
     </div>
   );
