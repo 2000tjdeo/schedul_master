@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ACCENT } from '../../utils/colorMap.js';
 
 const NOTE_TYPES = [
@@ -8,25 +8,59 @@ const NOTE_TYPES = [
   { id: 'handoff',  label: '인수인계',  icon: 'swap_horiz',    color: '#10b981' },
 ];
 
-export default function NoteForm({ projectId, users = [], tasks = [], currentUser, onSave, onCancel }) {
-  const [type, setType] = useState('progress');
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [meetingDate, setMeetingDate] = useState(new Date().toISOString().slice(0, 10));
-  const [attendees, setAttendees] = useState([]);
-  const [toUserId, setToUserId] = useState('');
-  const [linkedTaskId, setLinkedTaskId] = useState('');
+export default function NoteForm({ projectId, users = [], tasks = [], currentUser, onSave, onCancel, initialData }) {
+  const [type, setType] = useState(initialData?.type || 'progress');
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [content, setContent] = useState(initialData?.content || '');
+  const [meetingDate, setMeetingDate] = useState(initialData?.meeting_date || new Date().toISOString().slice(0, 10));
+  const [attendees, setAttendees] = useState(initialData?.attendees || []);
+  const [toUserId, setToUserId] = useState(initialData?.to_user_id || '');
+  const [linkedTaskId, setLinkedTaskId] = useState(initialData?.task_id || '');
+  const [checklist, setChecklist] = useState(initialData?.checklist || []);
   const [saving, setSaving] = useState(false);
+  const isEdit = !!initialData;
+  const itemRefs = useRef({});
 
   const selectedType = NOTE_TYPES.find(t => t.id === type);
+  const hasChecklist = type === 'progress' || type === 'issue';
 
   const toggleAttendee = (userId) => {
     setAttendees(prev => prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]);
   };
 
+  const addCheckItem = () => {
+    const id = Date.now().toString();
+    setChecklist(prev => [...prev, { id, text: '', done: false }]);
+    setTimeout(() => itemRefs.current[id]?.focus(), 0);
+  };
+
+  const updateCheckItem = (id, text) => {
+    setChecklist(prev => prev.map(item => item.id === id ? { ...item, text } : item));
+  };
+
+  const removeCheckItem = (id) => {
+    setChecklist(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleItemKeyDown = (e, id) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCheckItem();
+    }
+    if (e.key === 'Backspace' && itemRefs.current[id]?.value === '') {
+      e.preventDefault();
+      const idx = checklist.findIndex(c => c.id === id);
+      removeCheckItem(id);
+      const prev = checklist[idx - 1];
+      if (prev) setTimeout(() => itemRefs.current[prev.id]?.focus(), 0);
+    }
+  };
+
+  const isSubmittable = content.trim() || title.trim() || checklist.some(c => c.text.trim());
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!content.trim() && !title.trim()) return;
+    if (!isSubmittable) return;
     setSaving(true);
 
     const payload = {
@@ -36,6 +70,12 @@ export default function NoteForm({ projectId, users = [], tasks = [], currentUse
       title: title.trim() || null,
       from_user_id: currentUser?.id || null,
     };
+
+    if (hasChecklist) {
+      const filtered = checklist.filter(c => c.text.trim());
+      payload.checklist = filtered.length ? filtered.map(c => ({ ...c, text: c.text.trim() })) : null;
+    }
+
     if (type === 'meeting') {
       payload.meeting_date = meetingDate;
       payload.attendees = attendees.length ? attendees : null;
@@ -182,6 +222,73 @@ export default function NoteForm({ projectId, users = [], tasks = [], currentUse
         }}
       />
 
+      {/* Checklist (progress / issue only) */}
+      {hasChecklist && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af' }}>체크리스트</span>
+            <button
+              type="button"
+              onClick={addCheckItem}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 3,
+                padding: '3px 8px', borderRadius: 6, border: 'none',
+                background: '#f1f5f9', cursor: 'pointer',
+                fontSize: 11, fontWeight: 700, color: '#52525b',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#e0e7ff'; e.currentTarget.style.color = '#6366f1'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#52525b'; }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>add</span>
+              추가
+            </button>
+          </div>
+
+          {checklist.map((item) => (
+            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#d1d5db', flexShrink: 0 }}>radio_button_unchecked</span>
+              <input
+                ref={el => itemRefs.current[item.id] = el}
+                type="text"
+                value={item.text}
+                onChange={e => updateCheckItem(item.id, e.target.value)}
+                onKeyDown={e => handleItemKeyDown(e, item.id)}
+                placeholder="항목 입력..."
+                style={{
+                  flex: 1, padding: '6px 10px', borderRadius: 7,
+                  border: '1px solid #e5e7eb', fontSize: 13, outline: 'none', background: '#fff',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => removeCheckItem(item.id)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#d1d5db', padding: 2, borderRadius: 4, flexShrink: 0 }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#fee2e2'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#d1d5db'; e.currentTarget.style.background = 'none'; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+              </button>
+            </div>
+          ))}
+
+          {checklist.length === 0 && (
+            <button
+              type="button"
+              onClick={addCheckItem}
+              style={{
+                padding: '8px', borderRadius: 8, border: '1.5px dashed #e5e7eb',
+                background: 'transparent', cursor: 'pointer',
+                fontSize: 12, color: '#c4c4c4', fontWeight: 600,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = selectedType?.color || ACCENT; e.currentTarget.style.color = selectedType?.color || ACCENT; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#c4c4c4'; }}
+            >
+              + 체크리스트 항목 추가
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button type="button" onClick={onCancel} style={{
@@ -190,14 +297,14 @@ export default function NoteForm({ projectId, users = [], tasks = [], currentUse
         }}>취소</button>
         <button
           type="submit"
-          disabled={saving || (!content.trim() && !title.trim())}
+          disabled={saving || !isSubmittable}
           style={{
             padding: '7px 14px', borderRadius: 8, border: 'none',
             background: selectedType?.color || ACCENT,
             color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-            opacity: (saving || (!content.trim() && !title.trim())) ? 0.6 : 1,
+            opacity: (saving || !isSubmittable) ? 0.6 : 1,
           }}
-        >{saving ? '저장 중...' : '저장'}</button>
+        >{saving ? '저장 중...' : isEdit ? '수정 완료' : '저장'}</button>
       </div>
     </form>
   );
