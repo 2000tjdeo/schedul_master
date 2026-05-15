@@ -27,8 +27,14 @@ export default function AppSidebar({
   projects = [],
   selectedProjectId,
   onSelectProject,
+  onArchiveProject,
 }) {
   const [showCompleted, setShowCompleted] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const activeProjects  = projects.filter(p => p.status !== 'completed' && (!p.end_date || p.end_date >= today));
+  const expiredProjects = projects.filter(p => p.status !== 'completed' && p.end_date && p.end_date < today);
+  const completedProjects = projects.filter(p => p.status === 'completed');
 
   if (!open) return null;
 
@@ -117,10 +123,11 @@ export default function AppSidebar({
 
           {/* Projects */}
           <div style={{ padding: '0 12px 6px', fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projects</div>
+
           {/* 전체 보기 */}
           <button
             onClick={() => onSelectProject?.(null)}
-            style={{ 
+            style={{
               display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
               borderRadius: 8, border: 'none', background: !selectedProjectId ? 'rgba(0,0,0,0.04)' : 'transparent',
               cursor: 'pointer', textAlign: 'left',
@@ -129,8 +136,9 @@ export default function AppSidebar({
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#94a3b8' }} />
             <span style={{ fontSize: 13, fontWeight: 600, color: !selectedProjectId ? '#b7131a' : '#52525b' }}>전체 보기</span>
           </button>
-          {/* 진행 중 프로젝트 목록 */}
-          {(projects || []).filter(p => p.status !== 'completed').map(proj => {
+
+          {/* 활성 프로젝트 */}
+          {activeProjects.map(proj => {
             const selected = selectedProjectId === proj.id;
             return (
               <button
@@ -142,14 +150,59 @@ export default function AppSidebar({
                   cursor: 'pointer', textAlign: 'left',
                 }}
               >
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: proj.color || '#6366f1' }} />
-                <span style={{ fontSize: 13, fontWeight: selected ? 700 : 500, color: selected ? '#b7131a' : '#52525b' }}>{proj.title || proj.name}</span>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: proj.color || '#6366f1' }} />
+                <span style={{ fontSize: 13, fontWeight: selected ? 700 : 500, color: selected ? '#b7131a' : '#52525b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {proj.title || proj.name}
+                </span>
               </button>
             );
           })}
 
-          {/* 종료된 프로젝트 토글 */}
-          {(projects || []).some(p => p.status === 'completed') && (
+          {/* 기간 만료 프로젝트 */}
+          {expiredProjects.length > 0 && (
+            <>
+              <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 700, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 12 }}>schedule</span>
+                기간 만료 {expiredProjects.length}건
+              </div>
+              {expiredProjects.map(proj => {
+                const selected = selectedProjectId === proj.id;
+                return (
+                  <div
+                    key={proj.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 12px',
+                      borderRadius: 8, background: selected ? 'rgba(249,115,22,0.08)' : 'transparent',
+                    }}
+                  >
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: proj.color || '#6366f1', opacity: 0.5 }} />
+                    <span
+                      onClick={() => onSelectProject?.(proj.id)}
+                      style={{ fontSize: 12, fontWeight: 500, color: '#9ca3af', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                    >
+                      {proj.title || proj.name}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (confirm(`"${proj.title || proj.name}" 프로젝트를 아카이브하시겠습니까?`)) {
+                          onArchiveProject?.(proj.id);
+                        }
+                      }}
+                      title="아카이브"
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#d1d5db', padding: 2, borderRadius: 4, flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.background = '#fff7ed'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#d1d5db'; e.currentTarget.style.background = 'none'; }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>archive</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* 아카이브된 프로젝트 토글 */}
+          {completedProjects.length > 0 && (
             <>
               <button
                 onClick={() => setShowCompleted(v => !v)}
@@ -162,10 +215,10 @@ export default function AppSidebar({
                   {showCompleted ? 'expand_less' : 'expand_more'}
                 </span>
                 <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>
-                  종료된 프로젝트 {(projects || []).filter(p => p.status === 'completed').length}건
+                  아카이브 {completedProjects.length}건
                 </span>
               </button>
-              {showCompleted && (projects || []).filter(p => p.status === 'completed').map(proj => {
+              {showCompleted && completedProjects.map(proj => {
                 const selected = selectedProjectId === proj.id;
                 return (
                   <button
@@ -174,7 +227,7 @@ export default function AppSidebar({
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 12px',
                       borderRadius: 8, border: 'none', background: selected ? 'rgba(0,0,0,0.04)' : 'transparent',
-                      cursor: 'pointer', textAlign: 'left', opacity: 0.55,
+                      cursor: 'pointer', textAlign: 'left', opacity: 0.5,
                     }}
                   >
                     <div style={{ width: 6, height: 6, borderRadius: '50%', background: proj.color || '#6366f1' }} />
